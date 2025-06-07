@@ -1,7 +1,5 @@
 #  Brainer - Memory-Preserving Workspace
 
-> A powerful note-taking and knowledge management platform that combines the best of Notion, Roam Research, and AI capabilities.
-
 ![Landing Page](./public/screenshot1.png)
 
 ## 🌟 What is Brainer?
