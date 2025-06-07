@@ -42,3 +42,26 @@ yarn-error.log*
 next-env.d.ts
 
 /src/generated/prisma
+
+# Sensitive data files - prevent accidental commits
+*.json
+!package.json
+!package-lock.json
+!components.json
+!tsconfig.json
+!next.config.json
+
+# Transcript files (should never be in public)
+/public/transcribe-*.json
+/public/asrOutput.json
+/public/*.transcript
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+
+# Temporary files
+/uploads/
+/temp/
+/tmp/
