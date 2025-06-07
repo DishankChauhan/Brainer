@@ -1,7 +1,6 @@
 'use client'
 
-import React, { useCallback, useState } from 'react'
-import { useDropzone } from 'react-dropzone'
+import React, { useCallback, useState, useRef } from 'react'
 import { Upload, Mic, Camera, X, FileAudio, Image as ImageIcon } from 'lucide-react'
 
 interface FileUploadProps {
@@ -19,15 +18,22 @@ interface UploadingFile {
 
 export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
+  const voiceInputRef = useRef<HTMLInputElement>(null)
+  const screenshotInputRef = useRef<HTMLInputElement>(null)
 
-  const onDrop = useCallback(async (acceptedFiles: File[]) => {
-    for (const file of acceptedFiles) {
+  const handleFileSelect = useCallback(async (files: FileList | null, type: 'voice' | 'screenshot') => {
+    if (!files || files.length === 0) return
+
+    for (const file of Array.from(files)) {
       const fileType = getFileType(file)
-      if (!fileType) continue
+      if (fileType !== type) {
+        console.error(`Invalid file type for ${type} upload:`, file.type)
+        continue
+      }
 
       const uploadingFile: UploadingFile = {
         file,
-        type: fileType,
+        type,
         progress: 0,
         status: 'uploading'
       }
@@ -35,7 +41,7 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
       setUploadingFiles(prev => [...prev, uploadingFile])
 
       try {
-        await onFileUpload(file, fileType)
+        await onFileUpload(file, type)
         setUploadingFiles(prev => 
           prev.map(f => 
             f.file === file 
@@ -74,50 +80,67 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
     setUploadingFiles(prev => prev.filter(f => f.file !== file))
   }
 
-  const { getRootProps, getInputProps, isDragActive } = useDropzone({
-    onDrop,
-    accept: {
-      'audio/*': ['.mp3', '.wav', '.m4a', '.aac'],
-      'image/*': ['.png', '.jpg', '.jpeg', '.gif', '.bmp']
-    },
-    multiple: true
-  })
+  const handleVoiceClick = () => {
+    voiceInputRef.current?.click()
+  }
+
+  const handleScreenshotClick = () => {
+    screenshotInputRef.current?.click()
+  }
 
   return (
     <div className={className}>
-      {/* Upload Area */}
-      <div
-        {...getRootProps()}
-        className={`
-          border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors
-          ${isDragActive 
-            ? 'border-indigo-500 bg-indigo-50' 
-            : 'border-gray-300 bg-gray-50 hover:border-indigo-400 hover:bg-indigo-25'
-          }
-        `}
-      >
-        <input {...getInputProps()} />
-        <Upload className="w-8 h-8 text-gray-400 mx-auto mb-4" />
-        
-        {isDragActive ? (
-          <p className="text-indigo-600 font-medium">Drop files here...</p>
-        ) : (
-          <div>
-            <p className="text-gray-600 mb-2">
-              <span className="font-medium">Click to upload</span> or drag and drop
-            </p>
-            <div className="flex items-center justify-center gap-6 text-sm text-gray-500">
-              <div className="flex items-center gap-1">
-                <Mic className="w-4 h-4" />
-                <span>Voice: MP3, WAV</span>
-              </div>
-              <div className="flex items-center gap-1">
-                <Camera className="w-4 h-4" />
-                <span>Images: PNG, JPG</span>
-              </div>
-            </div>
+      {/* Upload Buttons */}
+      <div className="space-y-3">
+        {/* Voice Recording Button */}
+        <button
+          onClick={handleVoiceClick}
+          className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-colors group"
+        >
+          <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+            <Mic className="w-5 h-5 text-white" />
           </div>
-        )}
+          <div className="flex-1 text-left">
+            <div className="font-medium text-blue-900">Record Voice Note</div>
+            <div className="text-sm text-blue-700">Upload audio files • MP3, WAV, M4A</div>
+          </div>
+          <Upload className="w-4 h-4 text-blue-600 opacity-60" />
+        </button>
+
+        {/* Hidden Voice Input */}
+        <input
+          ref={voiceInputRef}
+          type="file"
+          accept="audio/*,.mp3,.wav,.m4a,.aac"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files, 'voice')}
+        />
+
+        {/* Screenshot Upload Button */}
+        <button
+          onClick={handleScreenshotClick}
+          className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-green-300 rounded-lg bg-green-50 hover:bg-green-100 hover:border-green-400 transition-colors group"
+        >
+          <div className="flex-shrink-0 w-10 h-10 bg-green-500 rounded-full flex items-center justify-center group-hover:bg-green-600 transition-colors">
+            <Camera className="w-5 h-5 text-white" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="font-medium text-green-900">Upload Screenshot</div>
+            <div className="text-sm text-green-700">Extract text from images • PNG, JPG, JPEG</div>
+          </div>
+          <Upload className="w-4 h-4 text-green-600 opacity-60" />
+        </button>
+
+        {/* Hidden Screenshot Input */}
+        <input
+          ref={screenshotInputRef}
+          type="file"
+          accept="image/*,.png,.jpg,.jpeg,.gif,.bmp"
+          multiple
+          className="hidden"
+          onChange={(e) => handleFileSelect(e.target.files, 'screenshot')}
+        />
       </div>
 
       {/* Uploading Files */}
@@ -143,7 +166,9 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
                             ? 'bg-red-500'
                             : uploadingFile.status === 'completed'
                             ? 'bg-green-500'
-                            : 'bg-indigo-500'
+                            : uploadingFile.type === 'voice'
+                            ? 'bg-blue-500'
+                            : 'bg-green-500'
                         }`}
                         style={{ width: `${uploadingFile.progress}%` }}
                       />

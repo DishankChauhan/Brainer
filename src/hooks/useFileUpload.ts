@@ -36,6 +36,17 @@ export function useFileUpload() {
 
       const note = await response.json()
       console.log('useFileUpload: Upload successful, note created:', note.id)
+      console.log('useFileUpload: Full note data received:', {
+        id: note.id,
+        title: note.title,
+        isProcessing: note.isProcessing,
+        transcriptionJobId: note.transcriptionJobId,
+        transcriptionStatus: note.transcriptionStatus,
+        transcriptionS3Key: note.transcriptionS3Key,
+        transcriptionConfidence: note.transcriptionConfidence,
+        hasJobId: !!note.transcriptionJobId,
+        noteKeys: Object.keys(note)
+      })
       
       return note
     } catch (err) {

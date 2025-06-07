@@ -28,12 +28,17 @@ export async function GET(request: NextRequest) {
     console.log('Found notes:', notes.length)
 
     // Transform the data to match our frontend interface
-    const transformedNotes = notes.map((note: { id: any; title: any; content: any; createdAt: { toISOString: () => any }; updatedAt: { toISOString: () => any }; tags: any[] }) => ({
+    const transformedNotes = notes.map((note: any) => ({
       id: note.id,
       title: note.title,
       content: note.content,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
+      isProcessing: note.isProcessing,
+      transcriptionJobId: note.transcriptionJobId,
+      transcriptionStatus: note.transcriptionStatus,
+      transcriptionS3Key: note.transcriptionS3Key,
+      transcriptionConfidence: note.transcriptionConfidence,
       tags: note.tags.map((noteTag: { tag: { id: any; name: any; color: any } }) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
@@ -118,6 +123,11 @@ export async function POST(request: NextRequest) {
         content: noteWithTags!.content,
         createdAt: noteWithTags!.createdAt.toISOString(),
         updatedAt: noteWithTags!.updatedAt.toISOString(),
+        isProcessing: noteWithTags!.isProcessing,
+        transcriptionJobId: noteWithTags!.transcriptionJobId,
+        transcriptionStatus: noteWithTags!.transcriptionStatus,
+        transcriptionS3Key: noteWithTags!.transcriptionS3Key,
+        transcriptionConfidence: noteWithTags!.transcriptionConfidence,
         tags: noteWithTags!.tags.map((noteTag: { tag: { id: any; name: any; color: any } }) => ({
           id: noteTag.tag.id,
           name: noteTag.tag.name,
@@ -134,6 +144,11 @@ export async function POST(request: NextRequest) {
       content: note.content,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
+      isProcessing: note.isProcessing,
+      transcriptionJobId: note.transcriptionJobId,
+      transcriptionStatus: note.transcriptionStatus,
+      transcriptionS3Key: note.transcriptionS3Key,
+      transcriptionConfidence: note.transcriptionConfidence,
       tags: []
     }
 

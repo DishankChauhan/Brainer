@@ -4,11 +4,12 @@ import { prisma } from '@/lib/prisma'
 // GET - Fetch a specific note
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const note = await prisma.note.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         tags: {
           include: {
@@ -45,15 +46,16 @@ export async function GET(
 // PUT - Update a note
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const body = await request.json()
     const { title, content, tagIds } = body
 
     // Update the note
     const note = await prisma.note.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         title: title || 'Untitled Note',
         content: content || '',
@@ -65,14 +67,14 @@ export async function PUT(
     if (tagIds !== undefined) {
       // Remove existing tags
       await prisma.noteTags.deleteMany({
-        where: { noteId: params.id }
+        where: { noteId: id }
       })
 
       // Add new tags
       if (tagIds.length > 0) {
         await prisma.noteTags.createMany({
           data: tagIds.map((tagId: string) => ({
-            noteId: params.id,
+            noteId: id,
             tagId
           }))
         })
@@ -81,7 +83,7 @@ export async function PUT(
 
     // Fetch the updated note with tags
     const updatedNote = await prisma.note.findUnique({
-      where: { id: params.id },
+      where: { id },
       include: {
         tags: {
           include: {
@@ -114,17 +116,19 @@ export async function PUT(
 // DELETE - Delete a note
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
+    
     // Delete associated tags first (cascade should handle this, but being explicit)
     await prisma.noteTags.deleteMany({
-      where: { noteId: params.id }
+      where: { noteId: id }
     })
 
     // Delete the note
     await prisma.note.delete({
-      where: { id: params.id }
+      where: { id }
     })
 
     return NextResponse.json({ message: 'Note deleted successfully' })

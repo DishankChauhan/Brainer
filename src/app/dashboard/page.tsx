@@ -17,6 +17,10 @@ interface Note {
   createdAt: string
   updatedAt: string
   tags: { id: string; name: string; color: string }[]
+  isProcessing?: boolean
+  transcriptionJobId?: string
+  transcriptionStatus?: string
+  transcriptionConfidence?: number
 }
 
 interface Tag {
@@ -53,6 +57,9 @@ export default function Dashboard() {
   const [noteContent, setNoteContent] = useState('')
   const [noteTags, setNoteTags] = useState<string[]>([])
 
+  // Track active polling intervals to prevent duplicates
+  const [activePollingJobs, setActivePollingJobs] = useState<Set<string>>(new Set())
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/auth/signin')
@@ -65,6 +72,28 @@ export default function Dashboard() {
       setSelectedNote(notes[0])
     }
   }, [notes, selectedNote])
+
+  // Refresh selected note if it has transcription data to ensure latest content
+  useEffect(() => {
+    const refreshSelectedNoteIfNeeded = async () => {
+      if (selectedNote?.transcriptionJobId && selectedNote?.transcriptionStatus === 'COMPLETED') {
+        try {
+          const response = await fetch(`/api/transcription/${selectedNote.transcriptionJobId}`)
+          if (response.ok) {
+            const data = await response.json()
+            if (data.note && data.note.id === selectedNote.id) {
+              console.log('Refreshing selected note with latest transcription data')
+              setSelectedNote(data.note)
+            }
+          }
+        } catch (error) {
+          console.error('Failed to refresh selected note:', error)
+        }
+      }
+    }
+    
+    refreshSelectedNoteIfNeeded()
+  }, [selectedNote?.id, selectedNote?.transcriptionJobId])
 
   const handleSignOut = async () => {
     try {
@@ -161,16 +190,196 @@ export default function Dashboard() {
       console.log('Dashboard: Handling file upload', { fileName: file.name, type })
       const newNote = await uploadFile(file, type)
       
+      console.log('Dashboard: Upload completed, received note:', {
+        id: newNote.id,
+        isProcessing: newNote.isProcessing,
+        transcriptionJobId: newNote.transcriptionJobId,
+        transcriptionStatus: newNote.transcriptionStatus,
+        hasJobId: !!newNote.transcriptionJobId,
+        noteType: type
+      })
+      
       // Refresh notes to show the new upload
       await refetch?.()
       
       // Select the newly created note
       setSelectedNote(newNote)
       
+      // If it's a voice note with transcription job, start polling for updates
+      if (type === 'voice') {
+        console.log('Dashboard: Voice note uploaded, checking transcription conditions:', {
+          isProcessing: newNote.isProcessing,
+          hasJobId: !!newNote.transcriptionJobId,
+          jobId: newNote.transcriptionJobId
+        })
+        
+        if (newNote.isProcessing && newNote.transcriptionJobId) {
+          console.log('✅ Dashboard: Starting transcription polling for job:', newNote.transcriptionJobId)
+          startTranscriptionPolling(newNote.transcriptionJobId, newNote.id)
+        } else {
+          console.log('⚠️ Dashboard: Transcription polling NOT started - conditions not met:', {
+            isProcessing: newNote.isProcessing,
+            hasJobId: !!newNote.transcriptionJobId,
+            reason: !newNote.isProcessing ? 'not processing' : !newNote.transcriptionJobId ? 'no job ID' : 'unknown'
+          })
+        }
+      }
+      
       console.log('Dashboard: File uploaded and note created successfully')
     } catch (error) {
       console.error('Dashboard: File upload failed:', error)
       // The FileUpload component will handle displaying the error
+    }
+  }
+
+  // Poll for transcription updates
+  const startTranscriptionPolling = (jobId: string, noteId: string) => {
+    // Prevent duplicate polling for the same job
+    if (activePollingJobs.has(jobId)) {
+      console.log('🚫 Polling already active for job:', jobId)
+      return
+    }
+    
+    console.log('🔄 Starting transcription polling for job:', jobId, 'note:', noteId)
+    
+    // Add to active jobs
+    setActivePollingJobs(prev => new Set(prev).add(jobId))
+    
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('🔍 Polling transcription status for job:', jobId)
+        
+        const response = await fetch(`/api/transcription/${jobId}`)
+        console.log('📡 Transcription API response:', {
+          url: `/api/transcription/${jobId}`,
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        })
+        
+        if (!response.ok) {
+          console.error('❌ Failed to check transcription status:', response.status, response.statusText)
+          try {
+            const errorData = await response.json()
+            console.error('❌ Error details:', errorData)
+          } catch (e) {
+            console.error('❌ Could not parse error response')
+          }
+          return
+        }
+        
+        const data = await response.json()
+        console.log('📊 Transcription polling result:', {
+          jobId,
+          status: data.status,
+          jobComplete: data.jobComplete,
+          isProcessing: data.note?.isProcessing,
+          hasTranscript: !!data.note?.content?.includes('📝 Transcription'),
+          hasIssues: !!data.note?.content?.includes('⚠️ Completed with Issues'),
+          contentPreview: data.note?.content?.substring(0, 100) + '...',
+          noteId: data.note?.id
+        })
+        
+        // Stop polling if job is complete OR if note already has successful transcript
+        const hasSuccessfulTranscript = data.note?.content?.includes('📝 Transcription') && 
+                                       !data.note?.content?.includes('⚠️ Completed with Issues')
+        
+        if (data.jobComplete || hasSuccessfulTranscript) {
+          clearInterval(pollInterval)
+          console.log('✅ Transcription job completed, stopping polling and refreshing')
+          
+          // Remove from active jobs
+          setActivePollingJobs(prev => {
+            const newSet = new Set(prev)
+            newSet.delete(jobId)
+            return newSet
+          })
+          
+          // Refresh the notes list to get updated data
+          await refetch?.()
+          
+          // Update selected note if it's the one being transcribed
+          if (selectedNote?.id === noteId) {
+            console.log('🔄 Updating selected note with transcription result')
+            setSelectedNote(data.note)
+          }
+          
+          // Show a notification
+          if (hasSuccessfulTranscript) {
+            console.log('🎉 Voice transcription completed successfully!')
+          } else {
+            console.log('🎉 Voice transcription completed!')
+          }
+        }
+      } catch (error) {
+        console.error('❌ Transcription polling error:', error)
+        // Don't clear interval on error, just log and continue
+      }
+    }, 3000) // Poll every 3 seconds for faster updates
+
+    // Clear interval after 15 minutes (generous timeout)
+    setTimeout(() => {
+      clearInterval(pollInterval)
+      setActivePollingJobs(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(jobId)
+        return newSet
+      })
+      console.log('⏰ Transcription polling timeout reached - stopping polling for job:', jobId)
+    }, 900000)
+    
+    // Return the interval ID so it can be cleared if needed
+    return pollInterval
+  }
+
+  // Also check for processing notes on component mount and start polling
+  useEffect(() => {
+    if (notes.length > 0) {
+      const processingNotes = notes.filter(note => note.isProcessing && note.transcriptionJobId)
+      console.log('Found processing notes on mount:', processingNotes.length)
+      
+      processingNotes.forEach(note => {
+        if (note.transcriptionJobId && !activePollingJobs.has(note.transcriptionJobId)) {
+          console.log('Restarting polling for existing job:', note.transcriptionJobId)
+          startTranscriptionPolling(note.transcriptionJobId, note.id)
+        } else if (note.transcriptionJobId) {
+          console.log('Polling already active for job:', note.transcriptionJobId)
+        }
+      })
+    }
+  }, [notes, activePollingJobs])
+
+  const handleManualRefresh = async (jobId: string, noteId: string) => {
+    console.log('Manual refresh triggered for job:', jobId, 'note:', noteId)
+    
+    try {
+      const response = await fetch(`/api/transcription/${jobId}`)
+      if (!response.ok) {
+        console.error('Failed to refresh transcription status:', response.status, response.statusText)
+        return
+      }
+      
+      const data = await response.json()
+      console.log('Manual refresh result:', {
+        status: data.status,
+        jobComplete: data.jobComplete,
+        isProcessing: data.note?.isProcessing,
+        hasTranscript: !!data.note?.content?.includes('📝 Transcription')
+      })
+      
+      // Always refresh the notes list and update the selected note
+      await refetch?.()
+      
+      if (selectedNote?.id === noteId) {
+        console.log('Updating selected note with latest data')
+        setSelectedNote(data.note)
+      }
+      
+      if (data.jobComplete) {
+        console.log('🎉 Voice transcription completed!')
+      }
+    } catch (error) {
+      console.error('Manual refresh error:', error)
     }
   }
 
@@ -302,13 +511,22 @@ export default function Dashboard() {
                   <div
                     key={note.id}
                     onClick={() => setSelectedNote(note)}
-                    className={`p-3 rounded-lg cursor-pointer border transition-colors ${
+                    className={`p-3 rounded-lg cursor-pointer border transition-colors relative ${
                       selectedNote?.id === note.id
                         ? 'bg-indigo-50 border-indigo-200'
                         : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                     }`}
                   >
-                    <h4 className="font-medium text-gray-900 truncate">{note.title}</h4>
+                    {note.isProcessing && (
+                      <div className="absolute top-2 right-2">
+                        <div className="flex items-center gap-1">
+                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                          <span className="text-xs text-blue-600 font-medium">Processing</span>
+                        </div>
+                      </div>
+                    )}
+                    
+                    <h4 className="font-medium text-gray-900 truncate pr-20">{note.title}</h4>
                     <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                       {note.content.replace(/[#*`]/g, '').substring(0, 100)}
                     </p>
@@ -395,6 +613,27 @@ export default function Dashboard() {
                     </>
                   ) : (
                     <>
+                      {selectedNote?.isProcessing && selectedNote?.transcriptionJobId && (
+                        <button
+                          onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
+                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                          Check Status
+                        </button>
+                      )}
+                      {selectedNote?.transcriptionJobId && 
+                       selectedNote?.transcriptionStatus === 'COMPLETED' && 
+                       selectedNote?.content?.includes('⚠️ Completed with Issues') &&
+                       !selectedNote?.content?.includes('📝 Transcription') && (
+                        <button
+                          onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
+                          className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                          Retry Transcription
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEditNote(selectedNote!)}
                         className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"

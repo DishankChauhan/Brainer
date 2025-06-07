@@ -8,6 +8,10 @@ interface Note {
   createdAt: string
   updatedAt: string
   tags: { id: string; name: string; color: string }[]
+  isProcessing?: boolean
+  transcriptionJobId?: string
+  transcriptionStatus?: string
+  transcriptionConfidence?: number
 }
 
 interface Tag {
@@ -29,22 +33,45 @@ export function useNotes() {
   const syncUser = async () => {
     if (!user) return false
 
+    // Validate required user data
+    if (!user.uid || !user.email) {
+      console.error('useNotes: Missing required user data', { uid: user.uid, email: user.email })
+      setError('Invalid user data - missing UID or email')
+      return false
+    }
+
     console.log('useNotes: Syncing user:', user.email)
 
     try {
+      const syncData = {
+        uid: user.uid,
+        email: user.email,
+        name: user.displayName || user.email?.split('@')[0] || 'User',
+        photoURL: user.photoURL || null
+      }
+      
+      console.log('useNotes: Sending sync data:', syncData)
+
       const response = await fetch('/api/users/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          uid: user.uid,
-          email: user.email,
-          name: user.displayName,
-          photoURL: user.photoURL
-        })
+        body: JSON.stringify(syncData)
       })
       
-      if (!response.ok) throw new Error('Failed to sync user')
-      console.log('useNotes: User synced successfully')
+      if (!response.ok) {
+        let errorMessage = 'Failed to sync user'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || errorData.details || errorMessage
+          console.error('useNotes: Sync API error response:', errorData)
+        } catch (parseError) {
+          console.error('useNotes: Failed to parse error response')
+        }
+        throw new Error(errorMessage)
+      }
+      
+      const result = await response.json()
+      console.log('useNotes: User synced successfully:', result.id)
       return true
     } catch (err) {
       console.error('Error syncing user:', err)
@@ -195,11 +222,22 @@ export function useNotes() {
       setError(null)
       
       if (user) {
+        console.log('useNotes: Starting loadData for user:', user.email, 'UID:', user.uid)
+        console.log('useNotes: User object:', { uid: user.uid, email: user.email, displayName: user.displayName })
+        
         // First sync the user, then load data
         const userSynced = await syncUser()
+        console.log('useNotes: User sync result:', userSynced)
+        
         if (userSynced) {
+          console.log('useNotes: Loading notes and tags...')
           await Promise.all([fetchNotes(), fetchTags()])
+          console.log('useNotes: Data loading completed')
+        } else {
+          console.error('useNotes: User sync failed, skipping data loading')
         }
+      } else {
+        console.log('useNotes: No user found, skipping loadData')
       }
       
       setLoading(false)

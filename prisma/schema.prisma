@@ -77,6 +77,13 @@ model Note {
   updatedAt DateTime @updatedAt
   userId    String
   
+  // Transcription job tracking (for voice notes)
+  transcriptionJobId     String?
+  transcriptionStatus    String? // 'IN_PROGRESS', 'COMPLETED', 'FAILED'
+  transcriptionS3Key     String?
+  transcriptionConfidence Float?
+  isProcessing           Boolean @default(false)
+  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags NoteTags[]
 

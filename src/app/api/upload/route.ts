@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { createWorker } from 'tesseract.js'
+import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcribe'
+import { getAWSServiceStatus } from '@/lib/aws-config'
 
 export async function POST(request: NextRequest) {
   try {
@@ -53,9 +55,16 @@ export async function POST(request: NextRequest) {
 
     let extractedText = ''
     let summary = ''
+    let transcriptionJobId: string | undefined
+    let transcriptionS3Key: string | undefined
+    let isProcessing = false
 
     if (type === 'voice') {
-      extractedText = await processVoiceFile(buffer, filename)
+      const result = await processVoiceFile(buffer, filename, userId)
+      extractedText = result.content
+      transcriptionJobId = result.jobId
+      transcriptionS3Key = result.s3Key
+      isProcessing = result.isProcessing
     } else if (type === 'screenshot') {
       extractedText = await processImageFile(buffer, filename)
     }
@@ -76,7 +85,11 @@ export async function POST(request: NextRequest) {
       data: {
         title: noteTitle,
         content: noteContent,
-        userId
+        userId,
+        transcriptionJobId,
+        transcriptionS3Key,
+        transcriptionStatus: transcriptionJobId ? 'IN_PROGRESS' : undefined,
+        isProcessing
       },
       include: {
         tags: {
@@ -96,6 +109,11 @@ export async function POST(request: NextRequest) {
       content: note.content,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
+      isProcessing: note.isProcessing,
+      transcriptionJobId: note.transcriptionJobId,
+      transcriptionStatus: note.transcriptionStatus,
+      transcriptionS3Key: note.transcriptionS3Key,
+      transcriptionConfidence: note.transcriptionConfidence,
       tags: note.tags.map((noteTag: any) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
@@ -116,14 +134,54 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// Voice processing placeholder
-async function processVoiceFile(buffer: Buffer, filename: string): Promise<string> {
+// Voice processing with AWS Transcribe integration
+async function processVoiceFile(
+  buffer: Buffer, 
+  filename: string, 
+  userId: string
+): Promise<{ content: string; jobId?: string; s3Key?: string; isProcessing: boolean }> {
   console.log('Processing voice file:', filename)
   
-  // For now, return a placeholder with file info
   const fileSizeKB = Math.round(buffer.length / 1024)
+  const awsStatus = getAWSServiceStatus()
   
-  return `# Voice Recording Uploaded\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n*Voice transcription will be available soon with AWS Transcribe integration.*\n\n---\n\n**What you can do now:**\n- Edit this note to add manual transcription\n- Add tags to organize your voice notes\n- Use this as a placeholder until auto-transcription is ready`
+  // Check if AWS Transcribe is available
+  if (!isTranscribeAvailable()) {
+    console.log('AWS Transcribe not configured, using placeholder mode')
+    
+    return {
+      content: `# Voice Recording Uploaded\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n## 🔧 Transcription Service Status\n\n${awsStatus.message}\n\n**To enable automatic transcription:**\n1. Configure AWS credentials in your environment\n2. Set up an S3 bucket for audio storage\n3. Enable AWS Transcribe service\n\n---\n\n**What you can do now:**\n- Edit this note to add manual transcription\n- Add tags to organize your voice notes\n- This note will be automatically updated once transcription is available`,
+      isProcessing: false
+    }
+  }
+
+  try {
+    // Initialize AWS Transcribe service
+    const transcribeService = new AWSTranscribeService()
+    
+    // Start transcription job
+    const { jobId, s3Key } = await transcribeService.startTranscription(
+      buffer, 
+      filename, 
+      userId
+    )
+    
+    console.log('AWS Transcribe job started:', jobId)
+    
+    return {
+      content: `# 🎙️ Voice Recording - Transcribing...\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n**Job ID:** ${jobId}\n\n## 🔄 Transcription in Progress\n\nYour voice recording is being processed by AWS Transcribe. This usually takes 1-3 minutes depending on the audio length.\n\n**Status:** Processing started at ${new Date().toLocaleTimeString()}\n\n---\n\n**What happens next:**\n- ✅ Audio uploaded to secure cloud storage\n- 🔄 AI transcription in progress\n- 🔔 This note will automatically update with the transcript\n- 🗑️ Audio files are automatically cleaned up after processing\n\n**You can:**\n- Leave this tab open to see live updates\n- Add tags while waiting\n- Start working on other notes\n\n*This note will refresh automatically when transcription completes.*`,
+      jobId,
+      s3Key,
+      isProcessing: true
+    }
+  } catch (error) {
+    console.error('AWS Transcribe failed, falling back to placeholder:', error)
+    
+    return {
+      content: `# Voice Recording Upload\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n## ⚠️ Transcription Service Temporarily Unavailable\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown transcription error'}\n\n**What you can do:**\n- Try uploading again in a few minutes\n- Check your AWS service configuration\n- Add manual transcription below\n\n---\n\n**Manual Transcription Area:**\n\n*Click Edit to add your transcription here...*\n\n---\n\n*Automatic transcription will resume once the service is restored.*`,
+      isProcessing: false
+    }
+  }
 }
 
 // OCR processing with Tesseract.js - configured for Next.js
