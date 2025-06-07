@@ -1,0 +1,227 @@
+import { useState, useEffect } from 'react'
+import { useAuth } from '@/components/AuthProvider'
+
+interface Note {
+  id: string
+  title: string
+  content: string
+  createdAt: string
+  updatedAt: string
+  tags: { id: string; name: string; color: string }[]
+}
+
+interface Tag {
+  id: string
+  name: string
+  color: string
+}
+
+export function useNotes() {
+  const { user } = useAuth()
+  const [notes, setNotes] = useState<Note[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  console.log('useNotes: Hook called, user:', user?.email || 'none')
+
+  // Sync Firebase user with local database
+  const syncUser = async () => {
+    if (!user) return false
+
+    console.log('useNotes: Syncing user:', user.email)
+
+    try {
+      const response = await fetch('/api/users/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          uid: user.uid,
+          email: user.email,
+          name: user.displayName,
+          photoURL: user.photoURL
+        })
+      })
+      
+      if (!response.ok) throw new Error('Failed to sync user')
+      console.log('useNotes: User synced successfully')
+      return true
+    } catch (err) {
+      console.error('Error syncing user:', err)
+      setError(err instanceof Error ? err.message : 'Failed to sync user')
+      return false
+    }
+  }
+
+  // Fetch notes
+  const fetchNotes = async () => {
+    if (!user?.uid) return
+    
+    try {
+      const response = await fetch(`/api/notes?userId=${user.uid}`)
+      if (!response.ok) throw new Error('Failed to fetch notes')
+      const data = await response.json()
+      setNotes(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch notes')
+    }
+  }
+
+  // Fetch tags
+  const fetchTags = async () => {
+    try {
+      const response = await fetch('/api/tags')
+      if (!response.ok) throw new Error('Failed to fetch tags')
+      const data = await response.json()
+      setTags(data)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to fetch tags')
+    }
+  }
+
+  // Create note
+  const createNote = async (title: string, content: string, tagIds: string[] = []) => {
+    if (!user?.uid) return null
+
+    console.log('useNotes: createNote called', { title, content, tagIds, userId: user.uid })
+
+    try {
+      // Ensure user is synced first
+      const userSynced = await syncUser()
+      if (!userSynced) return null
+
+      console.log('useNotes: Making API call to create note')
+
+      const response = await fetch('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          userId: user.uid,
+          tagIds
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create note')
+      }
+      const newNote = await response.json()
+      console.log('useNotes: Note created successfully:', newNote.id)
+      setNotes(prev => [newNote, ...prev])
+      return newNote
+    } catch (err) {
+      console.error('Error creating note:', err)
+      setError(err instanceof Error ? err.message : 'Failed to create note')
+      return null
+    }
+  }
+
+  // Update note
+  const updateNote = async (id: string, title: string, content: string, tagIds: string[] = []) => {
+    try {
+      const response = await fetch(`/api/notes/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title,
+          content,
+          tagIds
+        })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to update note')
+      }
+      const updatedNote = await response.json()
+      setNotes(prev => prev.map(note => note.id === id ? updatedNote : note))
+      return updatedNote
+    } catch (err) {
+      console.error('Error updating note:', err)
+      setError(err instanceof Error ? err.message : 'Failed to update note')
+      return null
+    }
+  }
+
+  // Delete note
+  const deleteNote = async (id: string) => {
+    try {
+      const response = await fetch(`/api/notes/${id}`, {
+        method: 'DELETE'
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to delete note')
+      }
+      setNotes(prev => prev.filter(note => note.id !== id))
+      return true
+    } catch (err) {
+      console.error('Error deleting note:', err)
+      setError(err instanceof Error ? err.message : 'Failed to delete note')
+      return false
+    }
+  }
+
+  // Create tag
+  const createTag = async (name: string, color: string = '#3B82F6') => {
+    try {
+      const response = await fetch('/api/tags', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, color })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to create tag')
+      }
+      const newTag = await response.json()
+      setTags(prev => [...prev, newTag])
+      return newTag
+    } catch (err) {
+      console.error('Error creating tag:', err)
+      setError(err instanceof Error ? err.message : 'Failed to create tag')
+      return null
+    }
+  }
+
+  // Load initial data
+  useEffect(() => {
+    const loadData = async () => {
+      setLoading(true)
+      setError(null)
+      
+      if (user) {
+        // First sync the user, then load data
+        const userSynced = await syncUser()
+        if (userSynced) {
+          await Promise.all([fetchNotes(), fetchTags()])
+        }
+      }
+      
+      setLoading(false)
+    }
+
+    loadData()
+  }, [user])
+
+  return {
+    notes,
+    tags,
+    loading,
+    error,
+    createNote,
+    updateNote,
+    deleteNote,
+    createTag,
+    refetch: async () => {
+      if (user) {
+        await syncUser()
+        return Promise.all([fetchNotes(), fetchTags()])
+      }
+    }
+  }
+} 
