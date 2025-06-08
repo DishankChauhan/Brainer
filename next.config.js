@@ -1,8 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  experimental: {
-    serverComponentsExternalPackages: ['tesseract.js'],
-  },
+  serverExternalPackages: ['tesseract.js'],
   webpack: (config, { isServer }) => {
     if (isServer) {
       // Handle Tesseract.js in server environment

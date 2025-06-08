@@ -1,6 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
+interface NoteTag {
+  tag: {
+    id: string
+    name: string
+    color: string
+  }
+}
+
 // GET - Fetch a specific note
 export async function GET(
   request: NextRequest,
@@ -29,7 +37,7 @@ export async function GET(
       content: note.content,
       createdAt: note.createdAt.toISOString(),
       updatedAt: note.updatedAt.toISOString(),
-      tags: note.tags.map((noteTag: any) => ({
+      tags: note.tags.map((noteTag: NoteTag) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
         color: noteTag.tag.color
@@ -54,7 +62,7 @@ export async function PUT(
     const { title, content, tagIds } = body
 
     // Update the note
-    const note = await prisma.note.update({
+    await prisma.note.update({
       where: { id },
       data: {
         title: title || 'Untitled Note',
@@ -99,7 +107,7 @@ export async function PUT(
       content: updatedNote!.content,
       createdAt: updatedNote!.createdAt.toISOString(),
       updatedAt: updatedNote!.updatedAt.toISOString(),
-      tags: updatedNote!.tags.map((noteTag: any) => ({
+      tags: updatedNote!.tags.map((noteTag: NoteTag) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
         color: noteTag.tag.color

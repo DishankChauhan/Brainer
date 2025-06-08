@@ -10,7 +10,6 @@ import React, {
     useMemo,
     type ReactNode,
     type MouseEvent as ReactMouseEvent,
-    type FormEvent,
     type SVGProps,
 } from 'react';
 import {
@@ -26,6 +25,35 @@ import {
     type Variants,
 } from 'framer-motion';
 import Link from 'next/link';
+import Image from 'next/image';
+import { Mic, Camera, Search, Brain, Lightbulb, Zap, Check, X, FacebookIcon, InstagramIcon, YoutubeIcon, LinkedinIcon } from 'lucide-react';
+import BrainerDataFlow from '@/components/BrainerDataFlow';
+import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { TestimonialCard } from '@/components/ui/testimonial-card';
+import { PinContainer } from '@/components/ui/pin-container';
+import { ButtonCta } from '@/components/ui/button-cta';
+import { Button } from '@/components/ui/button';
+
+// Custom CSS for animated glow border
+const glowBorderStyles = `
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  
+  @keyframes reverse-spin {
+    from { transform: rotate(360deg); }
+    to { transform: rotate(0deg); }
+  }
+  
+  .animate-spin-slow {
+    animation: spin-slow 25s linear infinite;
+  }
+  
+  .animate-reverse-spin {
+    animation: reverse-spin 20s linear infinite;
+  }
+`;
 
 function cn(...classes: (string | undefined | null | boolean)[]): string {
   return classes.filter(Boolean).join(" ");
@@ -245,6 +273,67 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
 );
 RotatingText.displayName = "RotatingText";
 
+interface FeatureCardProps {
+    children: ReactNode
+    className?: string
+}
+
+const FeatureCard = ({ children, className }: FeatureCardProps) => (
+    <Card className={cn('group relative bg-gray-900/50 border-gray-700/50 shadow-xl', className)}>
+        <CardDecorator />
+        {children}
+    </Card>
+)
+
+const CardDecorator = () => (
+    <>
+        <span className="absolute -left-px -top-px block size-2 border-l-2 border-t-2 border-indigo-500"></span>
+        <span className="absolute -right-px -top-px block size-2 border-r-2 border-t-2 border-indigo-500"></span>
+        <span className="absolute -bottom-px -left-px block size-2 border-b-2 border-l-2 border-indigo-500"></span>
+        <span className="absolute -bottom-px -right-px block size-2 border-b-2 border-r-2 border-indigo-500"></span>
+    </>
+)
+
+interface CardHeadingProps {
+    icon: React.ComponentType<{ className?: string }>
+    title: string
+    description: string
+}
+
+const CardHeading = ({ icon: Icon, title, description }: CardHeadingProps) => (
+    <div className="p-6">
+        <span className="text-gray-400 flex items-center gap-2">
+            <Icon className="size-4" />
+            {title}
+        </span>
+        <p className="mt-8 text-2xl font-semibold text-white">{description}</p>
+    </div>
+)
+
+interface ConnectionNodeProps {
+    label: string
+    type: 'primary' | 'secondary' | 'accent'
+}
+
+const ConnectionNode = ({ label, type }: ConnectionNodeProps) => (
+    <div className="text-center">
+        <div className="bg-gradient-to-b from-gray-700 to-gray-800 size-fit rounded-2xl p-px">
+            <div className="bg-gradient-to-b from-gray-800 to-gray-900 relative flex aspect-square w-fit items-center justify-center rounded-[15px] p-4">
+                <div className={cn('size-8 rounded-full border-2 flex items-center justify-center',
+                    type === 'primary' && 'border-indigo-500 bg-indigo-500/20',
+                    type === 'secondary' && 'border-purple-500 bg-purple-500/20',
+                    type === 'accent' && 'border-emerald-500 bg-emerald-500/20'
+                )}>
+                    {type === 'primary' && <Brain className="w-4 h-4 text-indigo-400" />}
+                    {type === 'secondary' && <Zap className="w-4 h-4 text-purple-400" />}
+                    {type === 'accent' && <Lightbulb className="w-4 h-4 text-emerald-400" />}
+                </div>
+            </div>
+        </div>
+        <span className="text-gray-400 mt-2 block text-center text-sm">{label}</span>
+    </div>
+)
+
 const ShinyText: React.FC<{ text: string; className?: string }> = ({ text, className = "" }) => (
     <span className={cn("relative overflow-hidden inline-block", className)}>
         {text}
@@ -328,6 +417,57 @@ interface Dot {
     currentRadius: number;
 }
 
+const brainerTestimonials = [
+    {
+        author: {
+            name: "Sarah Chen",
+            handle: "@sarahdesigns",
+            avatar: "https://images.unsplash.com/photo-1494790108755-2616b612b47c?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "Brainer has completely transformed how I capture and organize my design ideas. The voice notes feature is a game-changer for when inspiration strikes!"
+    },
+    {
+        author: {
+            name: "Marcus Rodriguez",
+            handle: "@marcusbuilds",
+            avatar: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "As a developer, I love how Brainer connects my scattered thoughts into actionable insights. The AI-powered search finds exactly what I need, when I need it."
+    },
+    {
+        author: {
+            name: "Emily Watson",
+            handle: "@emilywriter",
+            avatar: "https://images.unsplash.com/photo-1438761681033-6461ffad8d80?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "Finally, a tool that keeps up with my creative process! The screenshot OCR feature saves me hours of manual note-taking from research materials."
+    },
+    {
+        author: {
+            name: "David Park",
+            handle: "@davidstartup",
+            avatar: "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "Brainer is like having a second brain for my startup. It remembers everything so I can focus on building. The idea connections feature is pure magic!"
+    },
+    {
+        author: {
+            name: "Lisa Thompson",
+            handle: "@lisateaches",
+            avatar: "https://images.unsplash.com/photo-1489424731084-a5d8b219a5bb?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "Perfect for educators like me! I can quickly capture lecture ideas, student feedback, and research notes. The smart search brings everything together seamlessly."
+    },
+    {
+        author: {
+            name: "Alex Kumar",
+            handle: "@alexcreates",
+            avatar: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=150&h=150&fit=crop&crop=face"
+        },
+        text: "Brainer understands how creative minds work. It&apos;s not just storage - it&apos;s an intelligent companion that helps me discover patterns in my own thinking."
+    }
+];
+
 const InteractiveHero: React.FC = () => {
    const canvasRef = useRef<HTMLCanvasElement>(null);
    const animationFrameId = useRef<number | null>(null);
@@ -347,7 +487,6 @@ const InteractiveHero: React.FC = () => {
    const DOT_SPACING = 25;
    const BASE_OPACITY_MIN = 0.40;
    const BASE_OPACITY_MAX = 0.50;
-   const BASE_RADIUS = 1;
    const INTERACTION_RADIUS = 150;
    const INTERACTION_RADIUS_SQ = INTERACTION_RADIUS * INTERACTION_RADIUS;
    const OPACITY_BOOST = 0.6;
@@ -398,14 +537,14 @@ const InteractiveHero: React.FC = () => {
                    targetOpacity: baseOpacity,
                    currentOpacity: baseOpacity,
                    opacitySpeed: (Math.random() * 0.005) + 0.002,
-                   baseRadius: BASE_RADIUS,
-                   currentRadius: BASE_RADIUS,
+                   baseRadius: 1,
+                   currentRadius: 1,
                });
            }
        }
        dotsRef.current = newDots;
        gridRef.current = newGrid;
-   }, [DOT_SPACING, GRID_CELL_SIZE, BASE_OPACITY_MIN, BASE_OPACITY_MAX, BASE_RADIUS]);
+   }, [DOT_SPACING, GRID_CELL_SIZE, BASE_OPACITY_MIN, BASE_OPACITY_MAX]);
 
    const handleResize = useCallback(() => {
        const canvas = canvasRef.current;
@@ -494,11 +633,10 @@ const InteractiveHero: React.FC = () => {
        });
 
        animationFrameId.current = requestAnimationFrame(animateDots);
-   }, [GRID_CELL_SIZE, INTERACTION_RADIUS, INTERACTION_RADIUS_SQ, OPACITY_BOOST, RADIUS_BOOST, BASE_OPACITY_MIN, BASE_OPACITY_MAX, BASE_RADIUS]);
+   }, [GRID_CELL_SIZE, INTERACTION_RADIUS, INTERACTION_RADIUS_SQ, OPACITY_BOOST, RADIUS_BOOST, BASE_OPACITY_MIN, BASE_OPACITY_MAX]);
 
    useEffect(() => {
        handleResize();
-       const canvasElement = canvasRef.current;
         const handleMouseLeave = () => {
             mousePositionRef.current = { x: null, y: null };
         };
@@ -579,6 +717,9 @@ const InteractiveHero: React.FC = () => {
 
   return (
     <div className="pt-[100px] relative bg-[#111111] text-gray-300 min-h-screen flex flex-col overflow-x-hidden">
+        {/* Custom styles for animated glow border */}
+        <style jsx>{glowBorderStyles}</style>
+        
         <canvas ref={canvasRef} className="absolute inset-0 z-0 pointer-events-none opacity-80" />
         <div className="absolute inset-0 z-1 pointer-events-none" style={{
             background: 'linear-gradient(to bottom, transparent 0%, #111111 90%), radial-gradient(ellipse at center, transparent 40%, #111111 95%)'
@@ -610,14 +751,10 @@ const InteractiveHero: React.FC = () => {
                     </Link>
 
                     <Link href="/auth/signup">
-                        <motion.span
-                            className="bg-indigo-600 text-white px-4 py-[6px] rounded-md text-sm font-semibold hover:bg-indigo-700 transition-colors duration-200 whitespace-nowrap shadow-sm hover:shadow-md cursor-pointer inline-block"
-                            whileHover={{ scale: 1.03, y: -1 }}
-                            whileTap={{ scale: 0.97 }}
-                            transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                        >
-                            Get Started Free
-                        </motion.span>
+                        <ButtonCta 
+                            label="Get Started Free"
+                            className="hidden md:inline-block w-auto h-10 text-sm"
+                        />
                     </Link>
 
                     <motion.button
@@ -705,15 +842,10 @@ const InteractiveHero: React.FC = () => {
                 className="flex flex-col sm:flex-row items-center justify-center gap-2 w-full max-w-md mx-auto mb-3"
             >
                 <Link href="/auth/signup" className="w-full sm:w-auto">
-                    <motion.button
-                        type="button"
-                        className="w-full sm:w-auto bg-indigo-600 text-white px-8 py-3 rounded-md text-lg font-semibold hover:bg-indigo-700 transition-colors duration-200 whitespace-nowrap shadow-sm hover:shadow-md flex-shrink-0"
-                        whileHover={{ scale: 1.03, y: -1 }}
-                        whileTap={{ scale: 0.97 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 15 }}
-                    >
-                        Start Building Your Brain 🧠
-                    </motion.button>
+                    <ButtonCta 
+                        label="Start Building Your Brain 🧠"
+                        className="w-full sm:w-auto h-12 text-lg"
+                    />
                 </Link>
             </motion.div>
 
@@ -737,84 +869,723 @@ const InteractiveHero: React.FC = () => {
                 variants={imageVariants}
                 initial="hidden"
                 animate="visible"
-                className="w-full max-w-5xl mx-auto px-4 sm:px-0"
+                className="w-full max-w-7xl mx-auto px-4 sm:px-0"
             >
-                {/* Laptop Mockup Frame */}
-                <div className="relative">
-                    {/* Laptop Base */}
-                    <div className="relative bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 rounded-3xl p-4 shadow-2xl">
-                        {/* Screen Bezel */}
-                        <div className="bg-black rounded-2xl p-3 shadow-inner">
-                            {/* Screen Content */}
-                            <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-[16/10] shadow-lg">
-                                {/* macOS Window Bar */}
-                                <div className="absolute top-0 left-0 right-0 h-8 bg-gray-800 flex items-center px-4 z-10">
-                                    <div className="flex space-x-2">
-                                        <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                        <div className="w-3 h-3 rounded-full bg-green-500"></div>
-                                    </div>
-                                    <div className="flex-1 flex justify-center">
-                                        <div className="bg-gray-700 rounded-md px-3 py-1 text-xs text-gray-300 font-medium">
-                                            🧠 Brainer - Your Memory Workspace
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                {/* Hero Image Content */}
-                                <div className="absolute inset-0 pt-8">
-                                    <img 
-                                        src="/hero.png" 
-                                        alt="Brainer Application Interface" 
-                                        className="w-full h-full object-cover"
-                                    />
-                                    
-                                    {/* Subtle overlay to enhance the frame effect */}
-                                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none"></div>
-                                </div>
-                                
-                                {/* Screen reflection effect */}
-                                <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none"></div>
-                            </div>
-                        </div>
+                {/* Laptop Mockup Frame with Animated Glow Border */}
+                <div className="relative overflow-hidden rounded-[45px] p-3">
+                    {/* Animated Glow Border Container */}
+                    <div className="relative group">
+                        {/* Outer Glow Effects */}
+                        <div className="absolute inset-0 rounded-[45px] bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 blur-lg animate-pulse opacity-60"></div>
+                        <div className="absolute inset-[2px] rounded-[43px] bg-gradient-to-r from-pink-400 via-indigo-400 to-purple-400 blur-md animate-pulse opacity-40"></div>
                         
-                        {/* Laptop keyboard area */}
-                        <div className="mt-2 h-8 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-2xl shadow-inner">
-                            <div className="flex justify-center pt-2">
-                                <div className="w-16 h-1 bg-gray-600 rounded-full"></div>
+                        {/* Rotating Gradient Border Background */}
+                        <div className="absolute inset-[4px] rounded-[41px] bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 animate-spin-slow opacity-90 group-hover:opacity-100 transition-opacity duration-500"></div>
+                        <div className="absolute inset-[5px] rounded-[40px] bg-gradient-to-r from-pink-500 via-indigo-500 to-purple-500 animate-reverse-spin opacity-70"></div>
+                        
+                        {/* Strong Inner Glow */}
+                        <div className="absolute inset-[4px] rounded-[41px] shadow-[inset_0_0_20px_rgba(139,69,255,0.3),0_0_30px_rgba(139,69,255,0.2)] animate-pulse"></div>
+                        
+                        {/* Inner container with background to create border effect */}
+                        <div className="relative bg-[#111111] rounded-[36px] p-2">
+                            {/* Laptop Base */}
+                            <div className="relative bg-gradient-to-br from-gray-800 via-gray-700 to-gray-900 rounded-3xl p-4 shadow-2xl">
+                                {/* Enhanced inner glow */}
+                                <div className="absolute inset-0 rounded-3xl bg-gradient-to-r from-indigo-500/10 via-purple-500/20 to-pink-500/10 animate-pulse"></div>
+                                
+                                {/* Screen Bezel */}
+                                <div className="bg-black rounded-2xl p-3 shadow-inner relative z-10">
+                                    {/* Screen Content */}
+                                    <div className="relative bg-gray-900 rounded-xl overflow-hidden aspect-[16/10] shadow-lg">
+                                        {/* macOS Window Bar */}
+                                        <div className="absolute top-0 left-0 right-0 h-8 bg-gray-800 flex items-center px-4 z-10">
+                                            <div className="flex space-x-2">
+                                                <div className="w-3 h-3 rounded-full bg-red-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
+                                                <div className="w-3 h-3 rounded-full bg-green-500"></div>
+                                            </div>
+                                            <div className="flex-1 flex justify-center">
+                                                <div className="bg-gray-700 rounded-md px-3 py-1 text-xs text-gray-300 font-medium">
+                                                    🧠 Brainer - Your Memory Workspace
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        {/* Hero Image Content */}
+                                        <div className="absolute inset-0 pt-8">
+                                            <Image 
+                                                src="/hero.png" 
+                                                alt="Brainer Application Interface" 
+                                                fill
+                                                className="object-cover"
+                                                priority
+                                            />
+                                            
+                                            {/* Subtle overlay to enhance the frame effect */}
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent pointer-events-none"></div>
+                                        </div>
+                                        
+                                        {/* Screen reflection effect */}
+                                        <div className="absolute inset-0 bg-gradient-to-br from-white/5 via-transparent to-transparent pointer-events-none"></div>
+                                    </div>
+                                </div>
+                                
+                                {/* Laptop keyboard area */}
+                                <div className="mt-2 h-8 bg-gradient-to-b from-gray-700 to-gray-800 rounded-b-2xl shadow-inner relative z-10">
+                                    <div className="flex justify-center pt-2">
+                                        <div className="w-16 h-1 bg-gray-600 rounded-full"></div>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    {/* Shadow and reflection */}
-                    <div className="absolute -bottom-4 left-1/2 transform -translate-x-1/2 w-4/5 h-4 bg-black/20 blur-xl rounded-full"></div>
-                </div>
-                
-                {/* Feature highlights below the mockup */}
-                <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3">
-                    <div className="bg-gray-800/30 backdrop-blur-sm p-6 rounded-lg border border-gray-700/50">
-                        <div className="text-3xl mb-4">📝</div>
-                        <h3 className="font-medium text-white mb-2">Rich Notes</h3>
-                        <p className="text-gray-400 text-sm">Markdown support, smart tagging, and instant search</p>
-                    </div>
-                    
-                    <div className="bg-gray-800/30 backdrop-blur-sm p-6 rounded-lg border border-gray-700/50">
-                        <div className="text-3xl mb-4">🎙️</div>
-                        <h3 className="font-medium text-white mb-2">Voice Capture</h3>
-                        <p className="text-gray-400 text-sm">Auto-transcription and AI summaries of recordings</p>
-                    </div>
-                    
-                    <div className="bg-gray-800/30 backdrop-blur-sm p-6 rounded-lg border border-gray-700/50">
-                        <div className="text-3xl mb-4">🔍</div>
-                        <h3 className="font-medium text-white mb-2">Smart Connections</h3>
-                        <p className="text-gray-400 text-sm">AI finds patterns and surfaces related ideas</p>
-                    </div>
+                    {/* Enhanced Shadow and reflection */}
+                    <div className="absolute -bottom-6 left-1/2 transform -translate-x-1/2 w-4/5 h-6 bg-purple-500/10 blur-2xl rounded-full z-0"></div>
                 </div>
             </motion.div>
         </main>
 
+        {/* Brainer Data Flow Section */}
+        <section className="relative py-20 flex items-center justify-center">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#111111] via-gray-900/50 to-[#111111]"></div>
+            <div className="relative z-10 flex flex-col items-center text-center">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                    className="mb-8"
+                >
+                    <h2 className="text-3xl font-bold text-white mb-4">How Your Ideas Flow</h2>
+                    <p className="text-gray-400 max-w-2xl mx-auto">
+                        From capture to insight – watch how Brainer transforms your raw thoughts into organized, searchable knowledge
+                    </p>
+                </motion.div>
+                
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                    viewport={{ once: true }}
+                >
+                    <BrainerDataFlow />
+                </motion.div>
+            </div>
+        </section>
+
+        {/* Features Section */}
+        <section className="relative py-20">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#111111] via-gray-900/30 to-[#111111]"></div>
+            <div className="relative z-10 mx-auto max-w-2xl px-6 lg:max-w-6xl">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                    className="text-center mb-16"
+                >
+                    <h2 className="text-3xl font-bold text-white mb-4">Powerful Features for Creative Minds</h2>
+                    <p className="text-gray-400 max-w-2xl mx-auto">
+                        Everything you need to capture, organize, and recall your ideas with AI-powered intelligence
+                    </p>
+                </motion.div>
+                
+                <div className="mx-auto grid gap-8 lg:grid-cols-2">
+                    <FeatureCard>
+                        <CardHeader className="pb-3">
+                            <CardHeading
+                                icon={Mic}
+                                title="Voice Notes & Transcription"
+                                description="Advanced voice capture system. Record ideas instantly and get AI-powered transcriptions."
+                            />
+                        </CardHeader>
+
+                        <div className="relative mb-6 border-t border-gray-700/50">
+                            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-gray-900/20 to-gray-900/40"></div>
+                            <div className="aspect-[16/10] p-6 flex items-center justify-center">
+                                <div className="bg-gray-800/50 rounded-lg border border-indigo-500/30 p-8 w-full max-w-md">
+                                    <div className="flex items-center justify-center mb-4">
+                                        <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
+                                            <Mic className="w-8 h-8 text-white" />
+                                        </div>
+                                    </div>
+                                    <div className="text-center">
+                                        <p className="text-white font-medium mb-2">Recording...</p>
+                                        <div className="flex justify-center space-x-1">
+                                            <div className="w-2 h-8 bg-indigo-500 rounded-full animate-pulse"></div>
+                                            <div className="w-2 h-12 bg-indigo-500 rounded-full animate-pulse" style={{animationDelay: '0.1s'}}></div>
+                                            <div className="w-2 h-6 bg-indigo-500 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                                            <div className="w-2 h-10 bg-indigo-500 rounded-full animate-pulse" style={{animationDelay: '0.3s'}}></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </FeatureCard>
+
+                    <FeatureCard>
+                        <CardHeader className="pb-3">
+                            <CardHeading
+                                icon={Search}
+                                title="Smart Search & Memory"
+                                description="AI-powered search system. Find any idea, note, or memory instantly across all your content."
+                            />
+                        </CardHeader>
+
+                        <CardContent>
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-900/20"></div>
+                                <div className="aspect-[16/10] border border-gray-700/50 rounded-lg bg-gray-900/30 p-4">
+                                    <div className="bg-gray-800/80 rounded-lg p-4 border border-indigo-500/20">
+                                        <div className="flex items-center space-x-3 mb-4">
+                                            <Search className="w-5 h-5 text-indigo-400" />
+                                            <span className="text-gray-300 text-sm">&ldquo;AI meeting notes&rdquo;</span>
+                                        </div>
+                                        <div className="space-y-2">
+                                            <div className="bg-indigo-600/20 border border-indigo-500/30 rounded p-2">
+                                                <p className="text-white text-xs font-medium">Meeting with Sarah about AI features</p>
+                                                <p className="text-gray-400 text-xs">Voice note • 2 days ago</p>
+                                            </div>
+                                            <div className="bg-gray-700/50 border border-gray-600/30 rounded p-2">
+                                                <p className="text-gray-300 text-xs">AI implementation roadmap</p>
+                                                <p className="text-gray-500 text-xs">Note • 1 week ago</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </FeatureCard>
+
+                    <FeatureCard>
+                        <CardHeader className="pb-3">
+                            <CardHeading
+                                icon={Camera}
+                                title="Visual Capture & OCR"
+                                description="Screenshot intelligence. Capture any screen and extract text automatically with AI."
+                            />
+                        </CardHeader>
+
+                        <CardContent>
+                            <div className="relative mb-6">
+                                <div className="absolute inset-0 bg-gradient-to-b from-transparent to-gray-900/20"></div>
+                                <div className="aspect-[16/10] border border-gray-700/50 rounded-lg bg-gray-900/30 p-4 flex items-center justify-center">
+                                    <div className="bg-gray-800/80 rounded-lg p-4 border border-indigo-500/20 w-full max-w-sm">
+                                        <div className="flex items-center justify-center mb-3">
+                                            <Camera className="w-8 h-8 text-indigo-400" />
+                                        </div>
+                                        <div className="bg-gray-700/50 rounded border border-gray-600/30 p-3 mb-3">
+                                            <div className="text-xs text-gray-300 space-y-1">
+                                                <div className="h-2 bg-gray-600 rounded w-full"></div>
+                                                <div className="h-2 bg-gray-600 rounded w-3/4"></div>
+                                                <div className="h-2 bg-gray-600 rounded w-1/2"></div>
+                                            </div>
+                                        </div>
+                                        <p className="text-xs text-indigo-400 text-center">✨ Text extracted automatically</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </FeatureCard>
+
+                    <FeatureCard className="p-6 lg:col-span-1">
+                        <CardHeader className="pb-3">
+                            <CardHeading
+                                icon={Brain}
+                                title="AI-Powered Insights"
+                                description="Smart connections. Let AI find patterns and connections between your ideas automatically."
+                            />
+                        </CardHeader>
+
+                        <CardContent>
+                            <div className="flex justify-center gap-4 overflow-hidden">
+                                <ConnectionNode label="Ideas" type="primary" />
+                                <ConnectionNode label="Connections" type="secondary" />
+                                <ConnectionNode label="Insights" type="accent" />
+                            </div>
+                        </CardContent>
+                    </FeatureCard>
+                </div>
+            </div>
+        </section>
+
+        {/* Testimonials Section */}
+        <section className="relative py-20">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#111111] via-gray-900/20 to-[#111111]"></div>
+            <div className="relative z-10 mx-auto flex max-w-6xl flex-col items-center gap-4 text-center sm:gap-16">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                    className="flex flex-col items-center gap-4 px-4 sm:gap-8"
+                >
+                    <h2 className="max-w-[720px] text-3xl font-semibold leading-tight text-white sm:text-5xl sm:leading-tight">
+                        Loved by creators and thinkers worldwide
+                    </h2>
+                    <p className="text-md max-w-[600px] font-medium text-gray-400 sm:text-xl">
+                        See how Brainer is transforming the way people capture, organize, and recall their ideas
+                    </p>
+                </motion.div>
+
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                    viewport={{ once: true }}
+                    className="relative flex w-full flex-col items-center justify-center overflow-hidden"
+                >
+                    <div className="group flex overflow-hidden p-2 [--gap:1rem] [gap:var(--gap)] flex-row [--duration:40s]">
+                        <div className="flex shrink-0 justify-around [gap:var(--gap)] animate-marquee flex-row group-hover:[animation-play-state:paused]">
+                            {brainerTestimonials.map((testimonial, i) => (
+                                <TestimonialCard 
+                                    key={i}
+                                    {...testimonial}
+                                />
+                            ))}
+                        </div>
+                    </div>
+
+                    <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-1/3 bg-gradient-to-r from-[#111111] sm:block" />
+                    <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-[#111111] sm:block" />
+                </motion.div>
+            </div>
+        </section>
+
+        {/* 3D Showcase Section */}
+        <section className="relative py-20">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#111111] via-gray-900/30 to-[#111111]"></div>
+            <div className="relative z-10 mx-auto max-w-6xl px-6">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                    className="text-center mb-16"
+                >
+                    <h2 className="text-3xl font-bold text-white mb-4 sm:text-5xl">
+                        Experience Brainer&apos;s Power
+                    </h2>
+                    <p className="text-gray-400 max-w-2xl mx-auto sm:text-xl">
+                        Interactive 3D showcase of our most powerful features for creative minds
+                    </p>
+                </motion.div>
+                
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                    viewport={{ once: true }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 place-items-center"
+                >
+                    <PinContainer
+                        title="Smart Voice Notes"
+                        href="#"
+                        className="w-[300px] h-[200px] flex flex-col justify-between"
+                    >
+                        <div className="w-full">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center">
+                                    <Mic className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-semibold text-lg">Voice Intelligence</h3>
+                                    <p className="text-gray-400 text-sm">AI-powered transcription</p>
+                                </div>
+                            </div>
+                            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                                <div className="flex items-center space-x-2 mb-2">
+                                    <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>
+                                    <span className="text-gray-300 text-sm">Recording...</span>
+                                </div>
+                                <p className="text-gray-400 text-xs">
+                                    &ldquo;Meeting idea: implement voice search feature for better user experience...&rdquo;
+                                </p>
+                            </div>
+                        </div>
+                    </PinContainer>
+
+                    <PinContainer
+                        title="Visual Memory"
+                        href="#"
+                        className="w-[300px] h-[200px] flex flex-col justify-between"
+                    >
+                        <div className="w-full">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-purple-600 rounded-full flex items-center justify-center">
+                                    <Camera className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-semibold text-lg">Screenshot OCR</h3>
+                                    <p className="text-gray-400 text-sm">Extract text instantly</p>
+                                </div>
+                            </div>
+                            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                                <div className="bg-gray-700/50 rounded border border-gray-600/30 p-2 mb-2">
+                                    <div className="space-y-1">
+                                        <div className="h-1.5 bg-gray-600 rounded w-full"></div>
+                                        <div className="h-1.5 bg-gray-600 rounded w-3/4"></div>
+                                        <div className="h-1.5 bg-gray-600 rounded w-1/2"></div>
+                                    </div>
+                                </div>
+                                <p className="text-purple-400 text-xs">✨ Text extracted and searchable</p>
+                            </div>
+                        </div>
+                    </PinContainer>
+
+                    <PinContainer
+                        title="AI Insights"
+                        href="#"
+                        className="w-[300px] h-[200px] flex flex-col justify-between"
+                    >
+                        <div className="w-full">
+                            <div className="flex items-center gap-3 mb-4">
+                                <div className="w-12 h-12 bg-emerald-600 rounded-full flex items-center justify-center">
+                                    <Brain className="w-6 h-6 text-white" />
+                                </div>
+                                <div>
+                                    <h3 className="text-white font-semibold text-lg">Smart Connections</h3>
+                                    <p className="text-gray-400 text-sm">AI finds patterns</p>
+                                </div>
+                            </div>
+                            <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
+                                <div className="flex items-center justify-between mb-2">
+                                    <div className="w-4 h-4 bg-emerald-500 rounded-full"></div>
+                                    <div className="flex-1 h-px bg-gray-600 mx-2"></div>
+                                    <div className="w-4 h-4 bg-indigo-500 rounded-full"></div>
+                                    <div className="flex-1 h-px bg-gray-600 mx-2"></div>
+                                    <div className="w-4 h-4 bg-purple-500 rounded-full"></div>
+                                </div>
+                                <p className="text-emerald-400 text-xs">
+                                    Connected 3 related ideas about AI features
+                                </p>
+                            </div>
+                        </div>
+                    </PinContainer>
+                </motion.div>
+            </div>
+        </section>
+
+        {/* Pricing Section */}
+        <section className="relative py-20">
+            <div className="absolute inset-0 bg-gradient-to-b from-[#111111] via-gray-900/30 to-[#111111]"></div>
+            <div className="relative z-10 mx-auto max-w-6xl px-6">
+                <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.6 }}
+                    viewport={{ once: true }}
+                    className="text-center mb-16"
+                >
+                    <h2 className="text-3xl font-bold text-white mb-4 sm:text-5xl">
+                        Choose the Plan that&apos;s Right for You
+                    </h2>
+                    <p className="text-gray-400 max-w-2xl mx-auto sm:text-xl">
+                        Flexible pricing options to fit your needs
+                    </p>
+                </motion.div>
+                
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    whileInView={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.8, delay: 0.2 }}
+                    viewport={{ once: true }}
+                    className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 place-items-center"
+                >
+                    <PricingCard
+                        tier="Free"
+                        price="$0"
+                        period="Forever"
+                        bestFor="For individuals getting started"
+                        CTA="Get Started Free"
+                        benefits={[
+                            { text: "500 voice notes/month", checked: true },
+                            { text: "100 screenshots/month", checked: true },
+                            { text: "Basic AI search", checked: true },
+                            { text: "Text extraction (OCR)", checked: true },
+                            { text: "Web app access", checked: true },
+                            { text: "Basic link capture", checked: true },
+                            { text: "Advanced AI insights", checked: false },
+                            { text: "Team collaboration", checked: false },
+                            { text: "Priority support", checked: false },
+                        ]}
+                    />
+
+                    <PricingCard
+                        tier="Pro"
+                        price="$12"
+                        period="/month"
+                        bestFor="For power users and creators"
+                        CTA="Start Pro Trial"
+                        benefits={[
+                            { text: "Unlimited voice notes", checked: true },
+                            { text: "Unlimited screenshots", checked: true },
+                            { text: "Advanced AI search", checked: true },
+                            { text: "Smart text extraction", checked: true },
+                            { text: "Desktop + mobile apps", checked: true },
+                            { text: "Smart link previews", checked: true },
+                            { text: "Advanced AI insights", checked: true },
+                            { text: "Team collaboration (5 members)", checked: true },
+                            { text: "Priority support", checked: true },
+                        ]}
+                        popular={true}
+                    />
+
+                    <PricingCard
+                        tier="Team"
+                        price="$39"
+                        period="/month"
+                        bestFor="For teams and organizations"
+                        CTA="Contact Sales"
+                        benefits={[
+                            { text: "Everything in Pro", checked: true },
+                            { text: "Unlimited team members", checked: true },
+                            { text: "Advanced collaboration tools", checked: true },
+                            { text: "Custom AI training", checked: true },
+                            { text: "SSO & admin controls", checked: true },
+                            { text: "API access", checked: true },
+                            { text: "Custom integrations", checked: true },
+                            { text: "Dedicated account manager", checked: true },
+                            { text: "SLA guarantee", checked: true },
+                        ]}
+                    />
+                </motion.div>
+            </div>
+        </section>
+
+        {/* Footer Section */}
+        <Footer />
+
     </div>
   );
 };
+
+interface BenefitProps {
+  text: string
+  checked: boolean
+}
+
+const Benefit = ({ text, checked }: BenefitProps) => {
+  return (
+    <div className="flex items-center gap-3">
+      {checked ? (
+        <span className="grid size-4 place-content-center rounded-full bg-indigo-500 text-sm text-white">
+          <Check className="size-3" />
+        </span>
+      ) : (
+        <span className="grid size-4 place-content-center rounded-full bg-gray-700 text-sm text-gray-400">
+          <X className="size-3" />
+        </span>
+      )}
+      <span className="text-sm text-gray-300">{text}</span>
+    </div>
+  )
+}
+
+interface PricingCardProps {
+  tier: string
+  price: string
+  period?: string
+  bestFor: string
+  CTA: string
+  benefits: Array<{ text: string; checked: boolean }>
+  popular?: boolean
+  className?: string
+}
+
+const PricingCard = ({
+  tier,
+  price,
+  period = "",
+  bestFor,
+  CTA,
+  benefits,
+  popular = false,
+  className,
+}: PricingCardProps) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: 0.1 }}
+      viewport={{ once: true }}
+      className="relative h-full"
+    >
+      {popular && (
+        <div className="absolute -top-4 left-1/2 transform -translate-x-1/2 z-20">
+          <span className="bg-gradient-to-r from-indigo-600 to-purple-600 text-white px-4 py-2 rounded-full text-sm font-medium">
+            Most Popular
+          </span>
+        </div>
+      )}
+      
+      <Card
+        className={cn(
+          "relative h-full w-full overflow-hidden border border-gray-700/50 bg-gray-900/50 backdrop-blur-sm",
+          popular && "border-indigo-500/50 shadow-lg shadow-indigo-500/10",
+          "p-6",
+          className,
+        )}
+      >
+        <CardDecorator />
+        
+        <div className="flex flex-col items-center border-b border-gray-700/50 pb-6">
+          <span className="mb-6 inline-block text-white text-lg font-semibold">
+            {tier}
+          </span>
+          <div className="flex items-baseline mb-3">
+            <span className="inline-block text-4xl font-bold text-white">
+              {price}
+            </span>
+            {period && (
+              <span className="text-gray-400 ml-2">
+                {period}
+              </span>
+            )}
+          </div>
+          <span className="text-center text-gray-400 text-sm">
+            {bestFor}
+          </span>
+        </div>
+        
+        <div className="space-y-4 py-6">
+          {benefits.map((benefit, index) => (
+            <Benefit key={index} {...benefit} />
+          ))}
+        </div>
+        
+        <div className="mt-6">
+          {popular ? (
+            <ButtonCta
+              label={CTA}
+              className="w-full h-12"
+            />
+          ) : (
+            <Button
+              variant="outline"
+              className="w-full h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
+            >
+              {CTA}
+            </Button>
+          )}
+        </div>
+      </Card>
+    </motion.div>
+  )
+}
+
+interface FooterLink {
+	title: string;
+	href: string;
+	icon?: React.ComponentType<{ className?: string }>;
+}
+
+interface FooterSection {
+	label: string;
+	links: FooterLink[];
+}
+
+const footerLinks: FooterSection[] = [
+	{
+		label: 'Product',
+		links: [
+			{ title: 'Features', href: '#features' },
+			{ title: 'Pricing', href: '#pricing' },
+			{ title: 'Testimonials', href: '#testimonials' },
+			{ title: 'Integration', href: '/' },
+		],
+	},
+	{
+		label: 'Company',
+		links: [
+			{ title: 'FAQs', href: '/faqs' },
+			{ title: 'About Us', href: '/about' },
+			{ title: 'Privacy Policy', href: '/privacy' },
+			{ title: 'Terms of Services', href: '/terms' },
+		],
+	},
+	{
+		label: 'Resources',
+		links: [
+			{ title: 'Blog', href: '/blog' },
+			{ title: 'Changelog', href: '/changelog' },
+			{ title: 'Brand', href: '/brand' },
+			{ title: 'Help', href: '/help' },
+		],
+	},
+	{
+		label: 'Social Links',
+		links: [
+			{ title: 'Facebook', href: '#', icon: FacebookIcon },
+			{ title: 'Instagram', href: '#', icon: InstagramIcon },
+			{ title: 'Youtube', href: '#', icon: YoutubeIcon },
+			{ title: 'LinkedIn', href: '#', icon: LinkedinIcon },
+		],
+	},
+];
+
+type ViewAnimationProps = {
+	delay?: number;
+	className?: React.ComponentProps<typeof motion.div>['className'];
+	children: ReactNode;
+};
+
+function AnimatedContainer({ className, delay = 0.1, children }: ViewAnimationProps) {
+	return (
+		<motion.div
+			initial={{ filter: 'blur(4px)', translateY: -8, opacity: 0 }}
+			whileInView={{ filter: 'blur(0px)', translateY: 0, opacity: 1 }}
+			viewport={{ once: true }}
+			transition={{ delay, duration: 0.8 }}
+			className={className}
+		>
+			{children}
+		</motion.div>
+	);
+}
+
+function Footer() {
+	return (
+		<footer className="md:rounded-t-6xl relative w-full max-w-6xl mx-auto flex flex-col items-center justify-center rounded-t-4xl border-t bg-[radial-gradient(35%_128px_at_50%_0%,theme(backgroundColor.white/8%),transparent)] px-6 py-12 lg:py-16">
+			<div className="bg-foreground/20 absolute top-0 right-1/2 left-1/2 h-px w-1/3 -translate-x-1/2 -translate-y-1/2 rounded-full blur" />
+
+			<div className="grid w-full gap-8 xl:grid-cols-3 xl:gap-8">
+				<AnimatedContainer className="space-y-4">
+					<div className="flex items-center">
+						<span className="text-3xl mr-2">🧠</span>
+						<span className="text-xl font-bold text-white">Brainer</span>
+					</div>
+					<p className="text-gray-400 mt-8 text-sm md:mt-0">
+						© {new Date().getFullYear()} Brainer. All rights reserved.
+					</p>
+				</AnimatedContainer>
+
+				<div className="mt-10 grid grid-cols-2 gap-8 md:grid-cols-4 xl:col-span-2 xl:mt-0">
+					{footerLinks.map((section, index) => (
+						<AnimatedContainer key={section.label} delay={0.1 + index * 0.1}>
+							<div className="mb-10 md:mb-0">
+								<h3 className="text-xs text-white">{section.label}</h3>
+								<ul className="text-gray-400 mt-4 space-y-2 text-sm">
+									{section.links.map((link) => (
+										<li key={link.title}>
+											<a
+												href={link.href}
+												className="hover:text-white inline-flex items-center transition-all duration-300"
+											>
+												{link.icon && <link.icon className="me-1 size-4" />}
+												{link.title}
+											</a>
+										</li>
+									))}
+								</ul>
+							</div>
+						</AnimatedContainer>
+					))}
+				</div>
+			</div>
+		</footer>
+	);
+}
 
 export default InteractiveHero; 
