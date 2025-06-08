@@ -120,13 +120,13 @@ export async function PUT(
     // Handle tags update
     if (tagIds !== undefined) {
       // Remove existing tags
-      await prisma.noteTags.deleteMany({
+      await prisma.noteTag.deleteMany({
         where: { noteId: id }
       })
 
       // Add new tags
       if (tagIds.length > 0) {
-        await prisma.noteTags.createMany({
+        await prisma.noteTag.createMany({
           data: tagIds.map((tagId: string) => ({
             noteId: id,
             tagId
@@ -191,7 +191,7 @@ export async function DELETE(
     const { id } = await params
     
     // Delete associated tags first (cascade should handle this, but being explicit)
-    await prisma.noteTags.deleteMany({
+    await prisma.noteTag.deleteMany({
       where: { noteId: id }
     })
 

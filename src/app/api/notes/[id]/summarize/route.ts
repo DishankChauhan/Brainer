@@ -10,7 +10,7 @@ interface RouteParams {
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { forceRegenerate } = await request.json().catch(() => ({}));
     
     console.log('POST /api/notes/[id]/summarize - noteId:', id);

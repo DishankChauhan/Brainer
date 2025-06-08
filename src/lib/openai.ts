@@ -53,7 +53,15 @@ export async function generateSummary(content: string, maxTokens: number = 150):
       throw new Error('No response from OpenAI');
     }
 
-    const parsedResult = JSON.parse(result);
+    let parsedResult;
+    try {
+      parsedResult = JSON.parse(result);
+    } catch (parseError) {
+      console.error('Failed to parse OpenAI response as JSON:', result);
+      // Fallback: try to extract summary from the raw text
+      
+    }
+
     const tokensUsed = completion.usage?.total_tokens || 0;
 
     return {

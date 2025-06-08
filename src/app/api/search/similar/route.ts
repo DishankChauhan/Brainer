@@ -21,6 +21,54 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    // First check if vector extension is available
+    try {
+      await prisma.$queryRaw`SELECT 1`
+      
+      // Try a simple vector query to test if pgvector is installed
+      await prisma.$queryRaw`SELECT '[1,2,3]'::vector`
+    } catch (testError) {
+      console.log('pgvector not available, falling back to text search')
+      
+      // Fallback to text-based search
+      const textSearchResults = await prisma.note.findMany({
+        where: {
+          userId,
+          AND: noteId ? [{ id: { not: noteId } }] : [],
+          OR: [
+            { title: { contains: query, mode: 'insensitive' } },
+            { content: { contains: query, mode: 'insensitive' } },
+            { summary: { contains: query, mode: 'insensitive' } }
+          ]
+        },
+        select: {
+          id: true,
+          title: true,
+          content: true,
+          createdAt: true,
+          summary: true
+        },
+        orderBy: { updatedAt: 'desc' },
+        take: limit
+      })
+
+      const formattedResults: SimilarNote[] = textSearchResults.map(note => ({
+        id: note.id,
+        title: note.title,
+        content: note.content.substring(0, 150) + (note.content.length > 150 ? '...' : ''),
+        similarity: 0.5, // Default similarity for text search
+        createdAt: note.createdAt.toISOString(),
+        summary: note.summary || undefined
+      }))
+
+      return NextResponse.json({
+        results: formattedResults,
+        query,
+        tokensUsed: 0,
+        fallbackMode: 'text_search'
+      })
+    }
+
     // Generate embedding for the search query
     const queryEmbedding = await generateEmbedding(query)
 
@@ -110,7 +158,7 @@ export async function POST(request: NextRequest) {
         }, { status: 503 })
       }
       
-      if (error.message.includes('vector')) {
+      if (error.message.includes('vector') || error.message.includes('operator does not exist')) {
         return NextResponse.json({ 
           error: 'Vector database not properly configured. Please contact support.' 
         }, { status: 503 })

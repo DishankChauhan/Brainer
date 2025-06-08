@@ -3,53 +3,52 @@
 
 generator client {
   provider = "prisma-client-js"
-  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
-  extensions = [pgvector(map: "vector")]
 }
 
 model User {
-  id        String   @id
-  email     String   @unique
-  name      String?
-  password  String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // NextAuth
-  emailVerified DateTime?
-  image         String?
-  accounts      Account[]
-  sessions      Session[]
-
-  // App data
-  notes Note[]
-
+  id                              String                 @id @default(cuid())
+  email                           String                 @unique
+  name                            String?
+  emailVerified                   DateTime?
+  image                          String?
+  
+  // Stripe fields
+  stripeCustomerId               String?                @unique
+  stripeSubscriptionId           String?                @unique
+  stripePriceId                  String?
+  subscriptionStatus             SubscriptionStatus     @default(FREE)
+  subscriptionPlan               SubscriptionPlan       @default(FREE)
+  subscriptionCurrentPeriodStart DateTime?
+  subscriptionCurrentPeriodEnd   DateTime?
+  
+  // App usage tracking
+  voiceNotesUsed                 Int                    @default(0)
+  screenshotsUsed               Int                    @default(0)
+  lastUsageReset                DateTime               @default(now())
+  
+  // Monthly usage tracking
+  monthlyNotesCreated           Int                    @default(0)
+  monthlyAISummaries            Int                    @default(0)
+  monthlyVoiceTranscriptions    Int                    @default(0)
+  monthlyScreenshots            Int                    @default(0)
+  monthlyEmbeddings             Int                    @default(0)
+  
+  // Timestamps
+  createdAt                      DateTime               @default(now())
+  updatedAt                      DateTime               @updatedAt
+  
+  // Relations
+  sessions                       Session[]
+  voiceNotes                     VoiceNote[]
+  screenshots                    Screenshot[]
+  notes                          Note[]
+  
   @@map("users")
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String?
-  access_token      String?
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String?
-  session_state     String?
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@map("accounts")
 }
 
 model Session {
@@ -57,77 +56,126 @@ model Session {
   sessionToken String   @unique
   userId       String
   expires      DateTime
+  
   user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
   @@map("sessions")
 }
 
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
+model VoiceNote {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String?
+  content         String
+  transcription   String?
+  duration        Int?     // in seconds
+  fileUrl         String?
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("voice_notes")
+}
 
-  @@unique([identifier, token])
-  @@map("verificationtokens")
+model Screenshot {
+  id              String   @id @default(cuid())
+  userId          String
+  title           String?
+  description     String?
+  imageUrl        String
+  extractedText   String?
+  
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("screenshots")
 }
 
 model Note {
-  id        String   @id @default(cuid())
-  title     String
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  userId    String
+  id                        String        @id @default(cuid())
+  title                     String
+  content                   String
+  userId                    String
   
-  // Transcription job tracking (for voice notes)
-  transcriptionJobId     String?
-  transcriptionStatus    String? // 'IN_PROGRESS', 'COMPLETED', 'FAILED'
-  transcriptionS3Key     String?
-  transcriptionConfidence Float?
-  isProcessing           Boolean @default(false)
+  // Transcription fields
+  transcriptionJobId        String?
+  transcriptionS3Key        String?
+  transcriptionStatus       String?
+  transcriptionConfidence   Float?
+  isProcessing             Boolean       @default(false)
   
   // AI Summary fields
-  summary                String?
-  summaryGeneratedAt     DateTime?
-  summaryTokensUsed      Int?
-  keyPoints              String? // JSON array of key points
-  hasSummary             Boolean @default(false)
+  summary                   String?
+  summaryGeneratedAt        DateTime?
+  summaryTokensUsed         Int?
+  keyPoints                 String?       // JSON
+  hasSummary               Boolean       @default(false)
   
-  // Vector Embeddings for Semantic Search
-  embedding              Unsupported("vector(1536)")?  // OpenAI embedding dimension
-  embeddingGeneratedAt   DateTime?
-  embeddingModel         String?  // Track which model generated embedding
-  hasEmbedding           Boolean @default(false)
+  // Topic extraction fields
+  extractedTopics           String?       // JSON
+  topicsGeneratedAt         DateTime?
+  topicsTokensUsed          Int?
+  hasTopics                Boolean       @default(false)
   
-  // Topic Threading & Concept Extraction
-  extractedTopics        String?  // JSON array of topics/concepts
-  topicsGeneratedAt      DateTime?
-  topicsTokensUsed       Int?
-  hasTopics              Boolean @default(false)
+  // Embedding fields
+  embedding                 String?       // Vector type will be handled by pgvector
+  embeddingGeneratedAt      DateTime?
+  embeddingModel           String?
+  hasEmbedding             Boolean       @default(false)
   
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tags NoteTags[]
-
+  user                      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tags                      NoteTag[]
+  
+  createdAt                 DateTime      @default(now())
+  updatedAt                 DateTime      @updatedAt
+  
   @@map("notes")
 }
 
 model Tag {
-  id    String @id @default(cuid())
-  name  String @unique
-  color String @default("#3B82F6")
+  id        String    @id @default(cuid())
+  name      String    @unique
+  color     String    @default("#3B82F6")
   
-  notes NoteTags[]
-
+  notes     NoteTag[]
+  
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  
   @@map("tags")
 }
 
-model NoteTags {
-  noteId String
-  tagId  String
+model NoteTag {
+  noteId    String
+  tagId     String
   
-  note Note @relation(fields: [noteId], references: [id], onDelete: Cascade)
-  tag  Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
-
+  note      Note      @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  tag       Tag       @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  
   @@id([noteId, tagId])
   @@map("note_tags")
+}
+
+enum SubscriptionStatus {
+  FREE
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  INCOMPLETE
+  INCOMPLETE_EXPIRED
+  TRIALING
+  UNPAID
+}
+
+enum SubscriptionPlan {
+  FREE
+  PRO
+  TEAM
 } 

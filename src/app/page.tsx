@@ -247,7 +247,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
                 >
                     {elementObj.characters.map((char, charIndex) => {
                         const globalIndex = elementObj.startIndex + charIndex;
-                        return (
+  return (
                             <motion.span
                                 key={`${char}-${charIndex}`}
                                 initial={initial}
@@ -739,10 +739,10 @@ const InteractiveHero: React.FC = () => {
                 </div>
 
                 <div className="hidden md:flex items-center justify-center flex-grow space-x-6 lg:space-x-8 px-4">
-                    <NavLink href="#">Features</NavLink>
-                    <NavLink href="#">Pricing</NavLink>
-                    <NavLink href="#">About</NavLink>
-                    <NavLink href="#">Help</NavLink>
+                    <NavLink href="/features">Features</NavLink>
+                    <NavLink href="/pricing">Pricing</NavLink>
+                    <NavLink href="/about">About</NavLink>
+                    <NavLink href="/help">Help</NavLink>
                 </div>
 
                 <div className="flex items-center flex-shrink-0 space-x-4 lg:space-x-6">
@@ -755,7 +755,7 @@ const InteractiveHero: React.FC = () => {
                             label="Get Started Free"
                             className="hidden md:inline-block w-auto h-10 text-sm"
                         />
-                    </Link>
+          </Link>
 
                     <motion.button
                         className="md:hidden text-gray-300 hover:text-white z-50"
@@ -776,15 +776,15 @@ const InteractiveHero: React.FC = () => {
                         className="md:hidden absolute top-full left-0 right-0 bg-[#111111]/95 backdrop-blur-sm shadow-lg py-4 border-t border-gray-800/50"
                     >
                         <div className="flex flex-col items-center space-y-4 px-6">
-                            <NavLink href="#" onClick={() => setIsMobileMenuOpen(false)}>Features</NavLink>
-                            <NavLink href="#" onClick={() => setIsMobileMenuOpen(false)}>Pricing</NavLink>
-                            <NavLink href="#" onClick={() => setIsMobileMenuOpen(false)}>About</NavLink>
-                            <NavLink href="#" onClick={() => setIsMobileMenuOpen(false)}>Help</NavLink>
+                            <NavLink href="/features" onClick={() => setIsMobileMenuOpen(false)}>Features</NavLink>
+                            <NavLink href="/pricing" onClick={() => setIsMobileMenuOpen(false)}>Pricing</NavLink>
+                            <NavLink href="/about" onClick={() => setIsMobileMenuOpen(false)}>About</NavLink>
+                            <NavLink href="/help" onClick={() => setIsMobileMenuOpen(false)}>Help</NavLink>
                             <hr className="w-full border-t border-gray-700/50 my-2"/>
                             <Link href="/auth/signin" onClick={() => setIsMobileMenuOpen(false)}>
                                 <NavLink asChild>Sign in</NavLink>
-                            </Link>
-                        </div>
+          </Link>
+        </div>
                     </motion.div>
                 )}
             </AnimatePresence>
@@ -1106,7 +1106,7 @@ const InteractiveHero: React.FC = () => {
                             </div>
                         </CardContent>
                     </FeatureCard>
-                </div>
+          </div>
             </div>
         </section>
 
@@ -1145,7 +1145,7 @@ const InteractiveHero: React.FC = () => {
                                 />
                             ))}
                         </div>
-                    </div>
+          </div>
 
                     <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-1/3 bg-gradient-to-r from-[#111111] sm:block" />
                     <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-[#111111] sm:block" />
@@ -1259,9 +1259,9 @@ const InteractiveHero: React.FC = () => {
                                 </div>
                                 <p className="text-emerald-400 text-xs">
                                     Connected 3 related ideas about AI features
-                                </p>
-                            </div>
-                        </div>
+            </p>
+          </div>
+        </div>
                     </PinContainer>
                 </motion.div>
             </div>
@@ -1357,7 +1357,7 @@ const InteractiveHero: React.FC = () => {
         {/* Footer Section */}
         <Footer />
 
-    </div>
+      </div>
   );
 };
 
@@ -1381,7 +1381,7 @@ const Benefit = ({ text, checked }: BenefitProps) => {
       <span className="text-sm text-gray-300">{text}</span>
     </div>
   )
-}
+} 
 
 interface PricingCardProps {
   tier: string
@@ -1404,6 +1404,54 @@ const PricingCard = ({
   popular = false,
   className,
 }: PricingCardProps) => {
+  const [loading, setLoading] = useState(false);
+
+  const handleStripeCheckout = async () => {
+    if (tier === 'Free') {
+      // Redirect to signup for free plan
+      window.location.href = '/auth/signup';
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // Use your actual Stripe price IDs from .env.local
+      const priceId = tier === 'Pro' 
+        ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || 'price_1RXo9NSJAtEbekfwqkcM8wWZ'
+        : process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID || 'price_1RXnZGSJAtEbekfwZloQgsoQ';
+
+      const response = await fetch('/api/stripe/create-checkout-session', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          priceId,
+          successUrl: `${window.location.origin}/auth/success?session_id={CHECKOUT_SESSION_ID}`,
+          cancelUrl: `${window.location.origin}/?canceled=true`,
+        }),
+      });
+
+      const { url, error } = await response.json();
+
+      if (error) {
+        console.error('Stripe checkout error:', error);
+        alert('Failed to create checkout session. Please try again.');
+        return;
+      }
+
+      if (url) {
+        window.location.href = url;
+      }
+    } catch (error) {
+      console.error('Error creating checkout session:', error);
+      alert('Something went wrong. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -1458,15 +1506,19 @@ const PricingCard = ({
         <div className="mt-6">
           {popular ? (
             <ButtonCta
-              label={CTA}
+              label={loading ? 'Loading...' : CTA}
               className="w-full h-12"
+              onClick={handleStripeCheckout}
+              disabled={loading}
             />
           ) : (
             <Button
               variant="outline"
-              className="w-full h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white"
+              className="w-full h-12 border-gray-600 text-gray-300 hover:bg-gray-800 hover:text-white disabled:opacity-50 disabled:cursor-not-allowed"
+              onClick={handleStripeCheckout}
+              disabled={loading}
             >
-              {CTA}
+              {loading ? 'Loading...' : CTA}
             </Button>
           )}
         </div>
@@ -1490,9 +1542,9 @@ const footerLinks: FooterSection[] = [
 	{
 		label: 'Product',
 		links: [
-			{ title: 'Features', href: '#features' },
-			{ title: 'Pricing', href: '#pricing' },
-			{ title: 'Testimonials', href: '#testimonials' },
+			{ title: 'Features', href: '/features' },
+			{ title: 'Pricing', href: '/pricing' },
+			{ title: 'Testimonials', href: '/testimonials' },
 			{ title: 'Integration', href: '/' },
 		],
 	},

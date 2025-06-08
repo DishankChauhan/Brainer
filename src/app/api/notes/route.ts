@@ -146,7 +146,7 @@ export async function POST(request: NextRequest) {
     // Add tags if provided
     if (tagIds && tagIds.length > 0) {
       console.log('Adding tags:', tagIds)
-      await prisma.noteTags.createMany({
+      await prisma.noteTag.createMany({
         data: tagIds.map((tagId: string) => ({
           noteId: note.id,
           tagId
