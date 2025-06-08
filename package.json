@@ -31,17 +31,20 @@
     "motion": "^12.16.0",
     "next": "^15.3.3",
     "openai": "^5.1.1",
+    "pg": "^8.12.0",
     "prisma": "^6.9.0",
     "react": "^19.1.0",
     "react-dom": "^19.0.0",
     "tailwind-merge": "^3.3.0",
     "tesseract.js": "^6.0.1",
-    "uuid": "^11.1.0"
+    "uuid": "^11.1.0",
+    "vector-math": "^1.1.0"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

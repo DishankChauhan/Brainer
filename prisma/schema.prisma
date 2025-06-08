@@ -3,11 +3,13 @@
 
 generator client {
   provider = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
 }
 
 datasource db {
-  provider = "sqlite"
-  url      = "file:./dev.db"
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  extensions = [pgvector(map: "vector")]
 }
 
 model User {
@@ -90,6 +92,18 @@ model Note {
   summaryTokensUsed      Int?
   keyPoints              String? // JSON array of key points
   hasSummary             Boolean @default(false)
+  
+  // Vector Embeddings for Semantic Search
+  embedding              Unsupported("vector(1536)")?  // OpenAI embedding dimension
+  embeddingGeneratedAt   DateTime?
+  embeddingModel         String?  // Track which model generated embedding
+  hasEmbedding           Boolean @default(false)
+  
+  // Topic Threading & Concept Extraction
+  extractedTopics        String?  // JSON array of topics/concepts
+  topicsGeneratedAt      DateTime?
+  topicsTokensUsed       Int?
+  hasTopics              Boolean @default(false)
   
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags NoteTags[]

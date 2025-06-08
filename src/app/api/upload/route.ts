@@ -3,6 +3,8 @@ import { prisma } from '@/lib/prisma'
 import { createWorker } from 'tesseract.js'
 import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcribe'
 import { getAWSServiceStatus } from '@/lib/aws-config'
+import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
+import { generateSummary as generateOpenAISummary } from '@/lib/openai'
 
 export async function POST(request: NextRequest) {
   try {
@@ -70,7 +72,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate AI summary (placeholder for now)
-    summary = await generateSummary(extractedText, type)
+    summary = await generatePlaceholderSummary(extractedText, type)
 
     // Create note with extracted content
     const noteTitle = type === 'voice' 
@@ -101,6 +103,63 @@ export async function POST(request: NextRequest) {
     })
 
     console.log('Created note from', type, 'upload:', note.id)
+
+    // AUTO-GENERATE EMBEDDING for screenshot content (voice embeddings are handled in transcription completion)
+    if (type === 'screenshot' && extractedText && shouldGenerateEmbedding(extractedText)) {
+      try {
+        console.log('Auto-generating embedding for screenshot note:', note.id)
+        
+        // Prepare content for embedding
+        const contentForEmbedding = prepareContentForEmbedding(extractedText)
+        const fullText = `${noteTitle}\n\n${contentForEmbedding}`
+        
+        // Generate embedding
+        const embeddingResult = await generateEmbedding(fullText)
+        
+        // Update the note with embedding
+        await prisma.$executeRaw`
+          UPDATE "notes" 
+          SET 
+            embedding = ${JSON.stringify(embeddingResult.embedding)}::vector,
+            "embeddingGeneratedAt" = NOW(),
+            "embeddingModel" = ${embeddingResult.model},
+            "hasEmbedding" = true
+          WHERE id = ${note.id}
+        `
+        
+        console.log('Embedding auto-generated successfully for screenshot note:', note.id)
+      } catch (embeddingError) {
+        console.error('Failed to auto-generate embedding for screenshot note:', embeddingError)
+        // Don't fail the upload if embedding generation fails
+      }
+    }
+
+    // AUTO-GENERATE AI SUMMARY for screenshot content 
+    if (type === 'screenshot' && extractedText && extractedText.length >= 50) {
+      try {
+        console.log('Auto-generating AI summary for screenshot note:', note.id)
+        
+        // Generate AI summary using OpenAI
+        const summaryResult = await generateOpenAISummary(extractedText)
+        
+        // Update the note with AI summary
+        await prisma.note.update({
+          where: { id: note.id },
+          data: {
+            summary: summaryResult.summary,
+            summaryGeneratedAt: new Date(),
+            summaryTokensUsed: summaryResult.tokensUsed,
+            keyPoints: JSON.stringify(summaryResult.keyPoints),
+            hasSummary: true
+          }
+        })
+        
+        console.log('AI summary auto-generated successfully for screenshot note:', note.id)
+      } catch (summaryError) {
+        console.error('Failed to auto-generate AI summary for screenshot note:', summaryError)
+        // Don't fail the upload if summary generation fails
+      }
+    }
 
     // Return the created note
     const transformedNote = {
@@ -224,7 +283,7 @@ async function processImageFile(buffer: Buffer, filename: string): Promise<strin
 }
 
 // AI summary placeholder
-async function generateSummary(text: string, type: 'voice' | 'screenshot'): Promise<string> {
+async function generatePlaceholderSummary(text: string, type: 'voice' | 'screenshot'): Promise<string> {
   // Simple rule-based summary for now
   if (!text.trim() || text.length < 50) {
     return ''

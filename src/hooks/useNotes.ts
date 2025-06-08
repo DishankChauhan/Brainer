@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 
 interface Note {
@@ -18,12 +18,34 @@ interface Note {
   summaryTokensUsed?: number
   keyPoints?: string[]
   hasSummary?: boolean
+  // Vector Embeddings for Semantic Search
+  hasEmbedding?: boolean
+  embeddingGeneratedAt?: string
+  embeddingModel?: string
+  // Topic Threading & Concept Extraction
+  extractedTopics?: {
+    topics: string[]
+    concepts: string[]
+    suggestedTags: string[]
+  }
+  topicsGeneratedAt?: string
+  topicsTokensUsed?: number
+  hasTopics?: boolean
 }
 
 interface Tag {
   id: string
   name: string
   color: string
+}
+
+interface SimilarNote {
+  id: string
+  title: string
+  content: string
+  similarity: number
+  createdAt: string
+  summary?: string
 }
 
 export function useNotes() {
@@ -70,6 +92,13 @@ export function useNotes() {
           const errorData = await response.json()
           errorMessage = errorData.error || errorData.details || errorMessage
           console.error('useNotes: Sync API error response:', errorData)
+          
+          // If user already exists error, treat it as success
+          if (errorData.details?.includes('Unique constraint failed') || 
+              errorData.details?.includes('already exists')) {
+            console.log('useNotes: User already exists, treating as success')
+            return true
+          }
         } catch (parseError) {
           console.error('useNotes: Failed to parse error response')
         }
@@ -81,6 +110,15 @@ export function useNotes() {
       return true
     } catch (err) {
       console.error('Error syncing user:', err)
+      
+      // Don't treat sync errors as critical if user authentication works
+      if (err instanceof Error && 
+          (err.message.includes('already exists') || 
+           err.message.includes('Unique constraint'))) {
+        console.log('useNotes: Ignoring user sync error (user likely exists)')
+        return true
+      }
+      
       setError(err instanceof Error ? err.message : 'Failed to sync user')
       return false
     }
@@ -251,6 +289,116 @@ export function useNotes() {
     }
   }
 
+  // Generate embedding for a note
+  const generateEmbedding = async (noteId: string, forceRegenerate: boolean = false) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/embedding`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceRegenerate })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate embedding')
+      }
+      
+      const result = await response.json()
+      
+      // Update the note in our local state to reflect embedding status
+      setNotes(prev => prev.map(note => 
+        note.id === noteId ? { ...note, hasEmbedding: true, embeddingGeneratedAt: new Date().toISOString() } : note
+      ))
+      
+      return result
+    } catch (err) {
+      console.error('Error generating embedding:', err)
+      setError(err instanceof Error ? err.message : 'Failed to generate embedding')
+      return null
+    }
+  }
+
+  // Find similar notes using semantic search
+  const findSimilarNotes = useCallback(async (query: string, limit: number = 5, excludeNoteId?: string): Promise<SimilarNote[]> => {
+    if (!user?.uid) {
+      console.log('findSimilarNotes: No user UID found')
+      return []
+    }
+    
+    console.log('findSimilarNotes: Calling API with:', { query: query.substring(0, 50), userId: user.uid, limit, noteId: excludeNoteId })
+    
+    try {
+      const response = await fetch('/api/search/similar', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          userId: user.uid,
+          limit,
+          noteId: excludeNoteId
+        })
+      })
+      
+      console.log('findSimilarNotes: API response status:', response.status, response.statusText)
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        console.error('findSimilarNotes: API error:', errorData)
+        throw new Error(errorData.error || 'Failed to find similar notes')
+      }
+      
+      const result = await response.json()
+      console.log('findSimilarNotes: API result:', result)
+      return result.results || []
+    } catch (err) {
+      console.error('Error finding similar notes:', err)
+      setError(err instanceof Error ? err.message : 'Failed to find similar notes')
+      return []
+    }
+  }, [user?.uid])
+
+  // Extract topics and concepts from a note
+  const extractTopics = async (noteId: string, forceRegenerate: boolean = false) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/topics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceRegenerate })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to extract topics')
+      }
+      
+      const result = await response.json()
+      
+      // Update the note in our local state
+      setNotes(prev => prev.map(note => 
+        note.id === noteId ? { 
+          ...note, 
+          extractedTopics: result.topics,
+          hasTopics: true,
+          topicsGeneratedAt: new Date().toISOString()
+        } : note
+      ))
+      
+      return result
+    } catch (err) {
+      console.error('Error extracting topics:', err)
+      setError(err instanceof Error ? err.message : 'Failed to extract topics')
+      return null
+    }
+  }
+
+  // Memory recall: find notes that mention similar content to current typing
+  const getMemoryRecall = async (currentContent: string): Promise<SimilarNote[]> => {
+    if (!currentContent || currentContent.length < 20) return []
+    
+    // Use semantic search to find related notes
+    return findSimilarNotes(currentContent, 3)
+  }
+
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
@@ -292,6 +440,10 @@ export function useNotes() {
     deleteNote,
     createTag,
     generateSummary,
+    generateEmbedding,
+    findSimilarNotes,
+    extractTopics,
+    getMemoryRecall,
     refetch: async () => {
       if (user) {
         await syncUser()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
+import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
 
 interface NoteTag {
   tag: {
@@ -48,6 +49,10 @@ export async function GET(
       summaryTokensUsed: note.summaryTokensUsed,
       keyPoints: note.keyPoints ? JSON.parse(note.keyPoints) : [],
       hasSummary: note.hasSummary,
+      // Vector Embeddings for Semantic Search
+      hasEmbedding: note.hasEmbedding,
+      embeddingGeneratedAt: note.embeddingGeneratedAt?.toISOString(),
+      embeddingModel: note.embeddingModel,
       tags: note.tags.map((noteTag: NoteTag) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
@@ -81,6 +86,36 @@ export async function PUT(
         updatedAt: new Date()
       }
     })
+
+    // AUTO-GENERATE/UPDATE EMBEDDING when content changes and has sufficient content
+    if (content && shouldGenerateEmbedding(content)) {
+      try {
+        console.log('Auto-generating/updating embedding for note:', id)
+        
+        // Prepare content for embedding
+        const contentForEmbedding = prepareContentForEmbedding(content)
+        const fullText = `${title || 'Untitled Note'}\n\n${contentForEmbedding}`
+        
+        // Generate embedding
+        const embeddingResult = await generateEmbedding(fullText)
+        
+        // Update the note with embedding
+        await prisma.$executeRaw`
+          UPDATE "notes" 
+          SET 
+            embedding = ${JSON.stringify(embeddingResult.embedding)}::vector,
+            "embeddingGeneratedAt" = NOW(),
+            "embeddingModel" = ${embeddingResult.model},
+            "hasEmbedding" = true
+          WHERE id = ${id}
+        `
+        
+        console.log('Embedding auto-generated/updated successfully for note:', id)
+      } catch (embeddingError) {
+        console.error('Failed to auto-generate/update embedding for note:', embeddingError)
+        // Don't fail the note update if embedding generation fails
+      }
+    }
 
     // Handle tags update
     if (tagIds !== undefined) {
@@ -129,6 +164,10 @@ export async function PUT(
       summaryTokensUsed: updatedNote!.summaryTokensUsed,
       keyPoints: updatedNote!.keyPoints ? JSON.parse(updatedNote!.keyPoints) : [],
       hasSummary: updatedNote!.hasSummary,
+      // Vector Embeddings for Semantic Search
+      hasEmbedding: updatedNote!.hasEmbedding,
+      embeddingGeneratedAt: updatedNote!.embeddingGeneratedAt?.toISOString(),
+      embeddingModel: updatedNote!.embeddingModel,
       tags: updatedNote!.tags.map((noteTag: NoteTag) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,

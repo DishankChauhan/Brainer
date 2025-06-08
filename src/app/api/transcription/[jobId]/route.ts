@@ -3,6 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcribe'
 import { TranscriptionJobStatus } from '@aws-sdk/client-transcribe'
 import { generateSummary } from '@/lib/openai'
+import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
 
 export async function GET(
   request: NextRequest,
@@ -143,6 +144,36 @@ export async function GET(
             console.error('Failed to auto-generate AI summary for voice note:', summaryError)
             // Don't fail the transcription if summary generation fails
             // User can manually generate summary later
+          }
+        }
+
+        // AUTO-GENERATE EMBEDDING after successful transcription
+        if (result.transcript && result.transcript.trim().length >= 10) {
+          try {
+            console.log('Auto-generating embedding for transcribed voice note:', note.id)
+            
+            // Prepare content for embedding (include title and transcript)
+            const contentForEmbedding = prepareContentForEmbedding(result.transcript)
+            const fullText = `${note.title}\n\n${contentForEmbedding}`
+            
+            // Generate embedding
+            const embeddingResult = await generateEmbedding(fullText)
+            
+            // Update the note with embedding
+            await prisma.$executeRaw`
+              UPDATE "notes" 
+              SET 
+                embedding = ${JSON.stringify(embeddingResult.embedding)}::vector,
+                "embeddingGeneratedAt" = NOW(),
+                "embeddingModel" = ${embeddingResult.model},
+                "hasEmbedding" = true
+              WHERE id = ${note.id}
+            `
+            
+            console.log('Embedding auto-generated successfully for voice note:', note.id)
+          } catch (embeddingError) {
+            console.error('Failed to auto-generate embedding for voice note:', embeddingError)
+            // Don't fail the transcription if embedding generation fails
           }
         }
 

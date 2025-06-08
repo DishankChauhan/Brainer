@@ -9,6 +9,7 @@ import { Search, Plus, Tag, FileText, Calendar, Edit3, Trash2, Save, X, Brain, S
 import { useNotes } from '@/hooks/useNotes'
 import { useFileUpload } from '@/hooks/useFileUpload'
 import { FileUpload } from '@/components/FileUpload'
+import { MemoryRecall } from '@/components/MemoryRecall'
 
 interface Note {
   id: string
@@ -27,6 +28,8 @@ interface Note {
   summaryTokensUsed?: number
   keyPoints?: string[]
   hasSummary?: boolean
+  hasEmbedding?: boolean
+  embeddingGeneratedAt?: string
 }
 
 interface Tag {
@@ -42,7 +45,7 @@ export default function Dashboard() {
     notes, 
     tags, 
     loading: notesLoading,
-    error,
+    error: notesError,
     createNote,
     updateNote,
     deleteNote,
@@ -395,11 +398,9 @@ export default function Dashboard() {
     setIsGeneratingSummary(true)
     try {
       const updatedNote = await generateSummary(noteId, forceRegenerate)
-      if (updatedNote && selectedNote?.id === noteId) {
+      if (updatedNote) {
         setSelectedNote(updatedNote)
       }
-    } catch (error) {
-      console.error('Error generating summary:', error)
     } finally {
       setIsGeneratingSummary(false)
     }
@@ -417,10 +418,10 @@ export default function Dashboard() {
     return null
   }
 
-  if (error) {
+  if (notesError) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-red-600">Error: {error}</div>
+        <div className="text-red-600">Error: {notesError}</div>
       </div>
     )
   }
@@ -600,242 +601,265 @@ export default function Dashboard() {
         </div>
 
         {/* Main Content Area */}
-        <div className="flex-1 flex flex-col">
+        <div className="flex-1 flex flex-col min-h-0">
           {selectedNote || isCreatingNote ? (
-            <>
-              {/* Note Header */}
-              <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between">
-                <div className="flex-1">
-                  {isEditing ? (
-                    <input
-                      type="text"
-                      value={noteTitle}
-                      onChange={(e) => setNoteTitle(e.target.value)}
-                      placeholder="Note title..."
-                      className="text-xl font-semibold text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
-                    />
-                  ) : (
-                    <h1 className="text-xl font-semibold text-gray-900">
-                      {selectedNote?.title}
-                    </h1>
-                  )}
+            <div className="flex-1 flex min-h-0">
+              {/* Note Content Column */}
+              <div className="flex-1 flex flex-col min-h-0">
+                {/* Note Header */}
+                <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
+                  <div className="flex-1">
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={noteTitle}
+                        onChange={(e) => setNoteTitle(e.target.value)}
+                        placeholder="Note title..."
+                        className="text-xl font-semibold text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
+                      />
+                    ) : (
+                      <h1 className="text-xl font-semibold text-gray-900">
+                        {selectedNote?.title}
+                      </h1>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isEditing ? (
+                      <>
+                        <button
+                          onClick={handleSaveNote}
+                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <Save className="w-4 h-4" />
+                          Save
+                        </button>
+                        <button
+                          onClick={handleCancelEdit}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <X className="w-4 h-4" />
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        {selectedNote?.isProcessing && selectedNote?.transcriptionJobId && (
+                          <button
+                            onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
+                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                          >
+                            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                            Check Status
+                          </button>
+                        )}
+                        {selectedNote?.transcriptionJobId && 
+                         selectedNote?.transcriptionStatus === 'COMPLETED' && 
+                         selectedNote?.content?.includes('⚠️ Completed with Issues') &&
+                         !selectedNote?.content?.includes('📝 Transcription') && (
+                          <button
+                            onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
+                            className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                          >
+                            <div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
+                            Retry Transcription
+                          </button>
+                        )}
+                        {!selectedNote?.hasSummary ? (
+                          <button
+                            onClick={() => handleGenerateSummary(selectedNote!.id)}
+                            disabled={isGeneratingSummary || !selectedNote?.content || selectedNote.content.length < 50}
+                            className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                          >
+                            {isGeneratingSummary ? (
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Brain className="w-4 h-4" />
+                            )}
+                            {isGeneratingSummary ? 'Generating...' : 'AI Summary'}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={() => handleGenerateSummary(selectedNote!.id, true)}
+                            disabled={isGeneratingSummary}
+                            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                          >
+                            {isGeneratingSummary ? (
+                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                            ) : (
+                              <Sparkles className="w-4 h-4" />
+                            )}
+                            {isGeneratingSummary ? 'Regenerating...' : 'Regenerate Summary'}
+                          </button>
+                        )}
+                        <button
+                          onClick={() => handleEditNote(selectedNote!)}
+                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <Edit3 className="w-4 h-4" />
+                          Edit
+                        </button>
+                        <button
+                          onClick={() => handleDeleteNote(selectedNote!.id)}
+                          className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  {isEditing ? (
-                    <>
-                      <button
-                        onClick={handleSaveNote}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                      >
-                        <Save className="w-4 h-4" />
-                        Save
-                      </button>
-                      <button
-                        onClick={handleCancelEdit}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                      >
-                        <X className="w-4 h-4" />
-                        Cancel
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      {selectedNote?.isProcessing && selectedNote?.transcriptionJobId && (
-                        <button
-                          onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
-                          className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                          Check Status
-                        </button>
-                      )}
-                      {selectedNote?.transcriptionJobId && 
-                       selectedNote?.transcriptionStatus === 'COMPLETED' && 
-                       selectedNote?.content?.includes('⚠️ Completed with Issues') &&
-                       !selectedNote?.content?.includes('📝 Transcription') && (
-                        <button
-                          onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
-                          className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                          Retry Transcription
-                        </button>
-                      )}
-                      {!selectedNote?.hasSummary ? (
-                        <button
-                          onClick={() => handleGenerateSummary(selectedNote!.id)}
-                          disabled={isGeneratingSummary || !selectedNote?.content || selectedNote.content.length < 50}
-                          className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          {isGeneratingSummary ? (
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <Brain className="w-4 h-4" />
-                          )}
-                          {isGeneratingSummary ? 'Generating...' : 'AI Summary'}
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => handleGenerateSummary(selectedNote!.id, true)}
-                          disabled={isGeneratingSummary}
-                          className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          {isGeneratingSummary ? (
-                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                          ) : (
-                            <Sparkles className="w-4 h-4" />
-                          )}
-                          {isGeneratingSummary ? 'Regenerating...' : 'Regenerate Summary'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleEditNote(selectedNote!)}
-                        className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                      >
-                        <Edit3 className="w-4 h-4" />
-                        Edit
-                      </button>
-                      <button
-                        onClick={() => handleDeleteNote(selectedNote!.id)}
-                        className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                        Delete
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
 
-              {/* Note Content */}
-              <div className="flex-1 overflow-y-auto">
-                <div className="p-6">
-                  {isEditing ? (
-                    <div className="space-y-4">
-                      <textarea
-                        value={noteContent}
-                        onChange={(e) => setNoteContent(e.target.value)}
-                        placeholder="Start writing your note... (Markdown supported)"
-                        className="w-full h-96 p-4 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm"
-                      />
-                      
-                      {/* Tags Selection */}
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
-                        <div className="flex flex-wrap gap-2">
-                          {tags.map(tag => (
-                            <label key={tag.id} className="flex items-center gap-2 cursor-pointer">
-                              <input
-                                type="checkbox"
-                                checked={noteTags.includes(tag.id)}
-                                onChange={(e) => {
-                                  if (e.target.checked) {
-                                    setNoteTags([...noteTags, tag.id])
-                                  } else {
-                                    setNoteTags(noteTags.filter(id => id !== tag.id))
-                                  }
-                                }}
-                                className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                              />
-                              <span
-                                className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                                style={{ backgroundColor: tag.color }}
-                              >
-                                {tag.name}
-                              </span>
-                            </label>
-                          ))}
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="prose max-w-none">
-                      {/* AI Summary Display */}
-                      {selectedNote!.hasSummary && selectedNote!.summary && (
-                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-6">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-shrink-0">
-                              <Brain className="w-5 h-5 text-purple-600 mt-0.5" />
-                            </div>
-                            <div className="flex-1">
-                              <h3 className="text-sm font-semibold text-purple-900 mb-2 flex items-center gap-2">
-                                AI Summary
-                                {selectedNote!.summaryGeneratedAt && (
-                                  <span className="flex items-center gap-1 text-xs text-purple-600 font-normal">
-                                    <Clock className="w-3 h-3" />
-                                    {new Date(selectedNote!.summaryGeneratedAt).toLocaleDateString()}
-                                  </span>
-                                )}
-                              </h3>
-                              <p className="text-sm text-purple-800 leading-relaxed mb-3">
-                                {selectedNote!.summary}
-                              </p>
-                              
-                              {selectedNote!.keyPoints && selectedNote!.keyPoints.length > 0 && (
-                                <div>
-                                  <h4 className="text-xs font-semibold text-purple-900 mb-2 flex items-center gap-1">
-                                    <Hash className="w-3 h-3" />
-                                    Key Points
-                                  </h4>
-                                  <ul className="space-y-1">
-                                    {selectedNote!.keyPoints.map((point, index) => (
-                                      <li key={index} className="text-xs text-purple-700 flex items-start gap-2">
-                                        <span className="w-1 h-1 bg-purple-400 rounded-full mt-1.5 flex-shrink-0"></span>
-                                        {point}
-                                      </li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              
-                              {selectedNote!.summaryTokensUsed && (
-                                <div className="mt-3 pt-2 border-t border-purple-200">
-                                  <span className="text-xs text-purple-600">
-                                    {selectedNote!.summaryTokensUsed} tokens used
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      )}
-                      
-                      {/* Simple markdown rendering */}
-                      <div 
-                        className="whitespace-pre-wrap"
-                        dangerouslySetInnerHTML={{ 
-                          __html: selectedNote!.content
-                            .replace(/# (.*)/g, '<h1 class="text-2xl font-bold mb-4">$1</h1>')
-                            .replace(/## (.*)/g, '<h2 class="text-xl font-semibold mb-3">$1</h2>')
-                            .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                            .replace(/\*(.*?)\*/g, '<em>$1</em>')
-                            .replace(/- \[ \] (.*)/g, '<div class="flex items-center gap-2"><input type="checkbox" disabled class="rounded"> $1</div>')
-                            .replace(/- \[x\] (.*)/g, '<div class="flex items-center gap-2"><input type="checkbox" checked disabled class="rounded"> $1</div>')
-                            .replace(/- (.*)/g, '<li class="ml-4">$1</li>')
-                        }}
-                      />
-                      
-                      {/* Tags Display */}
-                      {selectedNote!.tags.length > 0 && (
-                        <div className="mt-6 pt-4 border-t border-gray-200">
-                          <div className="flex gap-2">
-                            {selectedNote!.tags.map(tag => (
-                              <span
-                                key={tag.id}
-                                className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                                style={{ backgroundColor: tag.color }}
-                              >
-                                {tag.name}
-                              </span>
+                {/* Note Content */}
+                <div className="flex-1 overflow-y-auto bg-white">
+                  <div className="p-6">
+                    {isEditing ? (
+                      <div className="space-y-4">
+                        <textarea
+                          value={noteContent}
+                          onChange={(e) => setNoteContent(e.target.value)}
+                          placeholder="Start writing your note... (Markdown supported)"
+                          className="w-full h-96 p-4 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 font-mono text-sm resize-none"
+                        />
+                        
+                        {/* Tags Selection */}
+                        <div>
+                          <label className="block text-sm font-medium text-gray-700 mb-2">Tags</label>
+                          <div className="flex flex-wrap gap-2">
+                            {tags.map(tag => (
+                              <label key={tag.id} className="flex items-center gap-2 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={noteTags.includes(tag.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setNoteTags([...noteTags, tag.id])
+                                    } else {
+                                      setNoteTags(noteTags.filter(id => id !== tag.id))
+                                    }
+                                  }}
+                                  className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                                />
+                                <span
+                                  className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                                  style={{ backgroundColor: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              </label>
                             ))}
                           </div>
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    ) : (
+                      <div className="prose max-w-none">
+                        {/* AI Summary Display */}
+                        {selectedNote!.hasSummary && selectedNote!.summary && (
+                          <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-6">
+                            <div className="flex items-start gap-3">
+                              <div className="flex-shrink-0">
+                                <Brain className="w-5 h-5 text-purple-600 mt-0.5" />
+                              </div>
+                              <div className="flex-1">
+                                <h3 className="text-sm font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                                  AI Summary
+                                  {selectedNote!.summaryGeneratedAt && (
+                                    <span className="flex items-center gap-1 text-xs text-purple-600 font-normal">
+                                      <Clock className="w-3 h-3" />
+                                      {new Date(selectedNote!.summaryGeneratedAt).toLocaleDateString()}
+                                    </span>
+                                  )}
+                                </h3>
+                                <p className="text-sm text-purple-800 leading-relaxed mb-3">
+                                  {selectedNote!.summary}
+                                </p>
+                                
+                                {selectedNote!.keyPoints && selectedNote!.keyPoints.length > 0 && (
+                                  <div>
+                                    <h4 className="text-xs font-semibold text-purple-900 mb-2 flex items-center gap-1">
+                                      <Hash className="w-3 h-3" />
+                                      Key Points
+                                    </h4>
+                                    <ul className="space-y-1">
+                                      {selectedNote!.keyPoints.map((point, index) => (
+                                        <li key={index} className="text-xs text-purple-700 flex items-start gap-2">
+                                          <span className="w-1 h-1 bg-purple-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                                          {point}
+                                        </li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                                
+                                {selectedNote!.summaryTokensUsed && (
+                                  <div className="mt-3 pt-2 border-t border-purple-200">
+                                    <span className="text-xs text-purple-600">
+                                      {selectedNote!.summaryTokensUsed} tokens used
+                                    </span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        
+                        {/* Simple markdown rendering */}
+                        <div 
+                          className="whitespace-pre-wrap"
+                          dangerouslySetInnerHTML={{ 
+                            __html: selectedNote!.content
+                              .replace(/# (.*)/g, '<h1 class="text-2xl font-bold mb-4">$1</h1>')
+                              .replace(/## (.*)/g, '<h2 class="text-xl font-semibold mb-3">$1</h2>')
+                              .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                              .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                              .replace(/- \[ \] (.*)/g, '<div class="flex items-center gap-2"><input type="checkbox" disabled class="rounded"> $1</div>')
+                              .replace(/- \[x\] (.*)/g, '<div class="flex items-center gap-2"><input type="checkbox" checked disabled class="rounded"> $1</div>')
+                              .replace(/- (.*)/g, '<li class="ml-4">$1</li>')
+                          }}
+                        />
+                        
+                        {/* Tags Display */}
+                        {selectedNote!.tags.length > 0 && (
+                          <div className="mt-6 pt-4 border-t border-gray-200">
+                            <div className="flex gap-2">
+                              {selectedNote!.tags.map(tag => (
+                                <span
+                                  key={tag.id}
+                                  className="px-2 py-1 rounded-full text-xs font-medium text-white"
+                                  style={{ backgroundColor: tag.color }}
+                                >
+                                  {tag.name}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
-            </>
+
+              {/* Memory Recall Sidebar - Only show when editing */}
+              {isEditing && (
+                <div className="w-80 bg-white border-l border-gray-200 flex-shrink-0 flex flex-col min-h-0">
+                  <div className="p-4 flex-1 overflow-y-auto">
+                    <MemoryRecall
+                      currentContent={noteContent}
+                      currentNoteId={selectedNote?.id}
+                      onNoteSelect={(noteId) => {
+                        const note = notes.find(n => n.id === noteId)
+                        if (note) {
+                          setSelectedNote(note)
+                          setIsEditing(false)
+                          setIsCreatingNote(false)
+                        }
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+            </div>
           ) : (
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center">
