@@ -914,8 +914,8 @@ const InteractiveHero: React.FC = () => {
                                         {/* Hero Image Content */}
                                         <div className="absolute inset-0 pt-8">
                                             <Image 
-                                                src="/hero.png" 
-                                                alt="Brainer Application Interface" 
+                                                src="/image 2.png" 
+                                                alt="Brainer Application Dashboard" 
                                                 fill
                                                 className="object-cover"
                                                 priority
