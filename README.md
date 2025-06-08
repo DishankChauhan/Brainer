@@ -1,6 +1,7 @@
 #                                  Brainer
 
-![brainer github landing](https://github.com/user-attachments/assets/bad21455-7aa7-4d83-8b4d-811dab9af7aa)
+![github 1](https://github.com/user-attachments/assets/5b08a835-bd51-42f7-89d9-fb7cee26d42a)
+
 
 ## 🌟 What is Brainer?
 
@@ -44,7 +45,7 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
 - Secure user sessions
 - Multi-provider auth support
 
-![brainer github landing 2](https://github.com/user-attachments/assets/1b8858a9-2410-45f7-a24b-0f0f5849627d)
+![github 2](https://github.com/user-attachments/assets/3b16151e-ed5d-4d2d-a1eb-a124e1e34ccf)
 
 
 ## 🛠️ Tech Stack
