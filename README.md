@@ -1,4 +1,4 @@
-#                                  Brainer - Memory Preserving Workspace
+#                                  Brainer
 
 ![brainer github landing](https://github.com/user-attachments/assets/bad21455-7aa7-4d83-8b4d-811dab9af7aa)
 
