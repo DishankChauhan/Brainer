@@ -1,6 +1,6 @@
 #                                  Brainer - Memory-Preserving Workspace
 
-![Landing Page](./public/screenshot1.png)
+![brainer github landing](https://github.com/user-attachments/assets/bad21455-7aa7-4d83-8b4d-811dab9af7aa)
 
 ## 🌟 What is Brainer?
 
@@ -44,7 +44,8 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
 - Secure user sessions
 - Multi-provider auth support
 
-![Dashboard](./public/screenshot2.png)
+![brainer github landing 2](https://github.com/user-attachments/assets/1b8858a9-2410-45f7-a24b-0f0f5849627d)
+
 
 ## 🛠️ Tech Stack
 
