@@ -87,7 +87,7 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/brainer.git
+   git clone https://github.com/DishankChauhan/brainer.git
    cd brainer
    ```
 
@@ -218,8 +218,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 📞 Support & Contact
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/brainer/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/brainer/discussions)
+- **Issues**: [GitHub Issues](https://github.com/DishankChauhan/brainer/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/DishankChauhan/brainer/discussions)
 - **Email**: support@brainer.app
 
 ---
