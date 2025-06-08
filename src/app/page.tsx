@@ -1416,10 +1416,17 @@ const PricingCard = ({
     setLoading(true);
     
     try {
-      // Use your actual Stripe price IDs from .env.local
+      // Use environment variables for Stripe price IDs
       const priceId = tier === 'Pro' 
-        ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || 'price_1RXo9NSJAtEbekfwqkcM8wWZ'
-        : process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID || 'price_1RXnZGSJAtEbekfwZloQgsoQ';
+        ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID
+        : process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID;
+
+      if (!priceId) {
+        console.error('Stripe price ID not configured');
+        alert('Payment configuration error. Please contact support.');
+        setLoading(false);
+        return;
+      }
 
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',

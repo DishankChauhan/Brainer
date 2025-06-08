@@ -16,13 +16,13 @@ export const getStripe = () => {
   return stripePromise
 }
 
-// Stripe Price IDs (replace with your actual price IDs from Stripe Dashboard)
+// Stripe Price IDs from environment variables
 export const STRIPE_PRICES = {
   FREE: null, // Free plan doesn't need a price ID
-  PRO_MONTHLY: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || 'price_1234567890', // Replace with actual price ID
-  PRO_YEARLY: process.env.STRIPE_PRO_YEARLY_PRICE_ID || 'price_0987654321', // Replace with actual price ID
-  TEAM_MONTHLY: process.env.STRIPE_TEAM_MONTHLY_PRICE_ID || 'price_1111111111', // Replace with actual price ID
-  TEAM_YEARLY: process.env.STRIPE_TEAM_YEARLY_PRICE_ID || 'price_2222222222', // Replace with actual price ID
+  PRO_MONTHLY: process.env.STRIPE_PRO_MONTHLY_PRICE_ID || null,
+  PRO_YEARLY: process.env.STRIPE_PRO_YEARLY_PRICE_ID || null,
+  TEAM_MONTHLY: process.env.STRIPE_TEAM_MONTHLY_PRICE_ID || null,
+  TEAM_YEARLY: process.env.STRIPE_TEAM_YEARLY_PRICE_ID || null,
 }
 
 export interface PricingPlan {

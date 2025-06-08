@@ -3,9 +3,9 @@ import { prisma } from '@/lib/prisma';
 import { generateSummary } from '@/lib/openai';
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string;
-  };
+  }>;
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {

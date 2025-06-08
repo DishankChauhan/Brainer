@@ -11,10 +11,16 @@ export default function PricingPage() {
     setLoading(plan);
     
     try {
-      // Use your actual Stripe price IDs from .env.local
+      // Use environment variables for Stripe price IDs
       const priceId = plan === 'pro' 
-        ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID || 'price_1RXo9NSJAtEbekfwqkcM8wWZ'
-        : process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID || 'price_1RXnZGSJAtEbekfwZloQgsoQ';
+        ? process.env.NEXT_PUBLIC_STRIPE_PRO_PRICE_ID
+        : process.env.NEXT_PUBLIC_STRIPE_TEAM_PRICE_ID;
+
+      if (!priceId) {
+        console.error('Stripe price ID not configured');
+        alert('Payment configuration error. Please contact support.');
+        return;
+      }
 
       const response = await fetch('/api/stripe/create-checkout-session', {
         method: 'POST',

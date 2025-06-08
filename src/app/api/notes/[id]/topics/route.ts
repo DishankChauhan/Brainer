@@ -3,14 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { extractTopicsAndConcepts } from '@/lib/embeddings'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = params
+    const { id } = await params
     const { forceRegenerate } = await request.json().catch(() => ({}))
     
     console.log('POST /api/notes/[id]/topics - noteId:', id)
@@ -46,7 +46,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const topicsResult = await extractTopicsAndConcepts(note.content)
 
     // Update the note with extracted topics
-    const updatedNote = await prisma.note.update({
+    await prisma.note.update({
       where: { id },
       data: {
         extractedTopics: JSON.stringify({

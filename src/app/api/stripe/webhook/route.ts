@@ -93,7 +93,7 @@ async function handleSubscriptionUpdate(subscription: Stripe.Subscription) {
   }
 
   // Map Stripe status to our enum
-  let subscriptionStatus = mapStripeStatusToOurs(subscription.status);
+  const subscriptionStatus = mapStripeStatusToOurs(subscription.status);
   
   // Determine plan based on price ID
   const priceId = subscription.items.data[0]?.price.id;

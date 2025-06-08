@@ -3,14 +3,14 @@ import { prisma } from '@/lib/prisma'
 import { generateEmbedding, prepareContentForEmbedding, shouldGenerateEmbedding } from '@/lib/embeddings'
 
 interface RouteParams {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export async function POST(request: NextRequest, { params }: RouteParams) {
   try {
-    const { id } = params
+    const { id } = await params
     const { forceRegenerate } = await request.json().catch(() => ({}))
     
     console.log('POST /api/notes/[id]/embedding - noteId:', id)
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const embeddingResult = await generateEmbedding(fullText)
 
     // Update the note with the embedding
-    const updatedNote = await prisma.$executeRaw`
+    await prisma.$executeRaw`
       UPDATE "notes" 
       SET 
         embedding = ${JSON.stringify(embeddingResult.embedding)}::vector,
