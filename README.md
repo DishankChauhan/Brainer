@@ -66,6 +66,7 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
 - **Custom user sync** - Database integration
 
 ### **AI & Cloud Services**
+- **OpenAI GPT** - AI-powered summarization and content analysis
 - **AWS Transcribe** - Professional voice-to-text
 - **AWS S3** - Reliable file storage
 - **Vision APIs** - OCR text extraction
@@ -82,6 +83,7 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
 - npm or yarn
 - AWS Account (for transcription features)
 - Firebase project (for authentication)
+- OpenAI API account (for AI summarization)
 
 ### Installation
 
@@ -107,8 +109,14 @@ Brainer is an intelligent workspace designed to capture, process, and organize y
    NEXT_PUBLIC_FIREBASE_API_KEY=your_firebase_api_key
    NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
    NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+   NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project.firebasestorage.app
+   NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+   NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
    
-   # AWS Configuration
+   # OpenAI Configuration (for AI Summarization)
+   OPENAI_API_KEY=your_openai_api_key
+   
+   # AWS Configuration (for voice transcription)
    AWS_ACCESS_KEY_ID=your_aws_access_key
    AWS_SECRET_ACCESS_KEY=your_aws_secret_key
    AWS_REGION=us-east-1
@@ -159,6 +167,7 @@ brainer/
 - ✅ Real-time transcription updates
 - ✅ Tag management and filtering
 - ✅ Search functionality
+- ✅ AI summarization with OpenAI GPT
 - ✅ Responsive design
 - ✅ Error handling and validation
 
@@ -170,7 +179,7 @@ brainer/
 ## 🗺️ Future Roadmap
 
 ### 🎯 **Phase 1: AI Integration** (Q1 2025)
-- [ ] **AI Summarization** - Automatic note summaries using OpenAI GPT
+- [x] **AI Summarization** - Automatic note summaries using OpenAI GPT ✅
 - [ ] **Smart Suggestions** - AI-powered content recommendations
 - [ ] **Semantic Search** - Vector-based search for better relevance
 - [ ] **Auto-tagging** - Intelligent tag suggestions

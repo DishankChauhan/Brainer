@@ -5,7 +5,7 @@ import { signOut } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Search, Plus, Tag, FileText, Calendar, Edit3, Trash2, Save, X } from 'lucide-react'
+import { Search, Plus, Tag, FileText, Calendar, Edit3, Trash2, Save, X, Brain, Sparkles, Clock, Hash } from 'lucide-react'
 import { useNotes } from '@/hooks/useNotes'
 import { useFileUpload } from '@/hooks/useFileUpload'
 import { FileUpload } from '@/components/FileUpload'
@@ -21,6 +21,12 @@ interface Note {
   transcriptionJobId?: string
   transcriptionStatus?: string
   transcriptionConfidence?: number
+  // AI Summary fields
+  summary?: string
+  summaryGeneratedAt?: string
+  summaryTokensUsed?: number
+  keyPoints?: string[]
+  hasSummary?: boolean
 }
 
 interface Tag {
@@ -40,6 +46,7 @@ export default function Dashboard() {
     createNote,
     updateNote,
     deleteNote,
+    generateSummary,
     refetch
   } = useNotes()
   
@@ -51,6 +58,7 @@ export default function Dashboard() {
   const [searchQuery, setSearchQuery] = useState('')
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [isCreatingNote, setIsCreatingNote] = useState(false)
+  const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
   
   // Form state for note editing
   const [noteTitle, setNoteTitle] = useState('')
@@ -383,6 +391,20 @@ export default function Dashboard() {
     }
   }
 
+  const handleGenerateSummary = async (noteId: string, forceRegenerate: boolean = false) => {
+    setIsGeneratingSummary(true)
+    try {
+      const updatedNote = await generateSummary(noteId, forceRegenerate)
+      if (updatedNote && selectedNote?.id === noteId) {
+        setSelectedNote(updatedNote)
+      }
+    } catch (error) {
+      console.error('Error generating summary:', error)
+    } finally {
+      setIsGeneratingSummary(false)
+    }
+  }
+
   if (authLoading || notesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -526,7 +548,12 @@ export default function Dashboard() {
                       </div>
                     )}
                     
-                    <h4 className="font-medium text-gray-900 truncate pr-20">{note.title}</h4>
+                    <h4 className="font-medium text-gray-900 truncate pr-20 flex items-center gap-2">
+                      {note.title}
+                      {note.hasSummary && (
+                        <Brain className="w-3 h-3 text-purple-500 flex-shrink-0" />
+                      )}
+                    </h4>
                     <p className="text-sm text-gray-600 mt-1 line-clamp-2">
                       {note.content.replace(/[#*`]/g, '').substring(0, 100)}
                     </p>
@@ -634,6 +661,33 @@ export default function Dashboard() {
                           Retry Transcription
                         </button>
                       )}
+                      {!selectedNote?.hasSummary ? (
+                        <button
+                          onClick={() => handleGenerateSummary(selectedNote!.id)}
+                          disabled={isGeneratingSummary || !selectedNote?.content || selectedNote.content.length < 50}
+                          className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          {isGeneratingSummary ? (
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Brain className="w-4 h-4" />
+                          )}
+                          {isGeneratingSummary ? 'Generating...' : 'AI Summary'}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleGenerateSummary(selectedNote!.id, true)}
+                          disabled={isGeneratingSummary}
+                          className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                        >
+                          {isGeneratingSummary ? (
+                            <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            <Sparkles className="w-4 h-4" />
+                          )}
+                          {isGeneratingSummary ? 'Regenerating...' : 'Regenerate Summary'}
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEditNote(selectedNote!)}
                         className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
@@ -696,6 +750,56 @@ export default function Dashboard() {
                     </div>
                   ) : (
                     <div className="prose max-w-none">
+                      {/* AI Summary Display */}
+                      {selectedNote!.hasSummary && selectedNote!.summary && (
+                        <div className="bg-gradient-to-r from-purple-50 to-indigo-50 border border-purple-200 rounded-lg p-4 mb-6">
+                          <div className="flex items-start gap-3">
+                            <div className="flex-shrink-0">
+                              <Brain className="w-5 h-5 text-purple-600 mt-0.5" />
+                            </div>
+                            <div className="flex-1">
+                              <h3 className="text-sm font-semibold text-purple-900 mb-2 flex items-center gap-2">
+                                AI Summary
+                                {selectedNote!.summaryGeneratedAt && (
+                                  <span className="flex items-center gap-1 text-xs text-purple-600 font-normal">
+                                    <Clock className="w-3 h-3" />
+                                    {new Date(selectedNote!.summaryGeneratedAt).toLocaleDateString()}
+                                  </span>
+                                )}
+                              </h3>
+                              <p className="text-sm text-purple-800 leading-relaxed mb-3">
+                                {selectedNote!.summary}
+                              </p>
+                              
+                              {selectedNote!.keyPoints && selectedNote!.keyPoints.length > 0 && (
+                                <div>
+                                  <h4 className="text-xs font-semibold text-purple-900 mb-2 flex items-center gap-1">
+                                    <Hash className="w-3 h-3" />
+                                    Key Points
+                                  </h4>
+                                  <ul className="space-y-1">
+                                    {selectedNote!.keyPoints.map((point, index) => (
+                                      <li key={index} className="text-xs text-purple-700 flex items-start gap-2">
+                                        <span className="w-1 h-1 bg-purple-400 rounded-full mt-1.5 flex-shrink-0"></span>
+                                        {point}
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                              
+                              {selectedNote!.summaryTokensUsed && (
+                                <div className="mt-3 pt-2 border-t border-purple-200">
+                                  <span className="text-xs text-purple-600">
+                                    {selectedNote!.summaryTokensUsed} tokens used
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
                       {/* Simple markdown rendering */}
                       <div 
                         className="whitespace-pre-wrap"

@@ -39,6 +39,12 @@ export async function GET(request: NextRequest) {
       transcriptionStatus: note.transcriptionStatus,
       transcriptionS3Key: note.transcriptionS3Key,
       transcriptionConfidence: note.transcriptionConfidence,
+      // AI Summary fields
+      summary: note.summary,
+      summaryGeneratedAt: note.summaryGeneratedAt?.toISOString(),
+      summaryTokensUsed: note.summaryTokensUsed,
+      keyPoints: note.keyPoints ? JSON.parse(note.keyPoints) : [],
+      hasSummary: note.hasSummary,
       tags: note.tags.map((noteTag: { tag: { id: any; name: any; color: any } }) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
@@ -128,6 +134,12 @@ export async function POST(request: NextRequest) {
         transcriptionStatus: noteWithTags!.transcriptionStatus,
         transcriptionS3Key: noteWithTags!.transcriptionS3Key,
         transcriptionConfidence: noteWithTags!.transcriptionConfidence,
+        // AI Summary fields
+        summary: noteWithTags!.summary,
+        summaryGeneratedAt: noteWithTags!.summaryGeneratedAt?.toISOString(),
+        summaryTokensUsed: noteWithTags!.summaryTokensUsed,
+        keyPoints: noteWithTags!.keyPoints ? JSON.parse(noteWithTags!.keyPoints) : [],
+        hasSummary: noteWithTags!.hasSummary,
         tags: noteWithTags!.tags.map((noteTag: { tag: { id: any; name: any; color: any } }) => ({
           id: noteTag.tag.id,
           name: noteTag.tag.name,
@@ -149,6 +161,12 @@ export async function POST(request: NextRequest) {
       transcriptionStatus: note.transcriptionStatus,
       transcriptionS3Key: note.transcriptionS3Key,
       transcriptionConfidence: note.transcriptionConfidence,
+      // AI Summary fields
+      summary: note.summary,
+      summaryGeneratedAt: note.summaryGeneratedAt?.toISOString(),
+      summaryTokensUsed: note.summaryTokensUsed,
+      keyPoints: note.keyPoints ? JSON.parse(note.keyPoints) : [],
+      hasSummary: note.hasSummary,
       tags: []
     }
 

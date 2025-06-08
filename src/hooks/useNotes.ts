@@ -12,6 +12,12 @@ interface Note {
   transcriptionJobId?: string
   transcriptionStatus?: string
   transcriptionConfidence?: number
+  // AI Summary fields
+  summary?: string
+  summaryGeneratedAt?: string
+  summaryTokensUsed?: number
+  keyPoints?: string[]
+  hasSummary?: boolean
 }
 
 interface Tag {
@@ -215,6 +221,36 @@ export function useNotes() {
     }
   }
 
+  // Generate AI summary for a note
+  const generateSummary = async (noteId: string, forceRegenerate: boolean = false) => {
+    try {
+      const response = await fetch(`/api/notes/${noteId}/summarize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ forceRegenerate })
+      })
+      
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate summary')
+      }
+      
+      const result = await response.json()
+      const updatedNote = result.note
+      
+      // Update the note in our local state
+      setNotes(prev => prev.map(note => 
+        note.id === noteId ? updatedNote : note
+      ))
+      
+      return updatedNote
+    } catch (err) {
+      console.error('Error generating summary:', err)
+      setError(err instanceof Error ? err.message : 'Failed to generate summary')
+      return null
+    }
+  }
+
   // Load initial data
   useEffect(() => {
     const loadData = async () => {
@@ -255,6 +291,7 @@ export function useNotes() {
     updateNote,
     deleteNote,
     createTag,
+    generateSummary,
     refetch: async () => {
       if (user) {
         await syncUser()

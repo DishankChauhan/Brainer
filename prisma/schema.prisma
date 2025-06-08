@@ -84,6 +84,13 @@ model Note {
   transcriptionConfidence Float?
   isProcessing           Boolean @default(false)
   
+  // AI Summary fields
+  summary                String?
+  summaryGeneratedAt     DateTime?
+  summaryTokensUsed      Int?
+  keyPoints              String? // JSON array of key points
+  hasSummary             Boolean @default(false)
+  
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   tags NoteTags[]
 

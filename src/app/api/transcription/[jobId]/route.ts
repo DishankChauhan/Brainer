@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcribe'
 import { TranscriptionJobStatus } from '@aws-sdk/client-transcribe'
+import { generateSummary } from '@/lib/openai'
 
 export async function GET(
   request: NextRequest,
@@ -55,6 +56,12 @@ export async function GET(
         isProcessing: note.isProcessing,
         transcriptionStatus: note.transcriptionStatus,
         transcriptionConfidence: note.transcriptionConfidence,
+        // AI Summary fields
+        summary: note.summary,
+        summaryGeneratedAt: note.summaryGeneratedAt?.toISOString(),
+        summaryTokensUsed: note.summaryTokensUsed,
+        keyPoints: note.keyPoints ? JSON.parse(note.keyPoints) : [],
+        hasSummary: note.hasSummary,
         tags: note.tags.map((noteTag: any) => ({
           id: noteTag.tag.id,
           name: noteTag.tag.name,
@@ -102,6 +109,42 @@ export async function GET(
             }
           }
         })
+
+        // AUTO-GENERATE AI SUMMARY after successful transcription
+        if (result.transcript && result.transcript.trim().length >= 50) {
+          try {
+            console.log('Auto-generating AI summary for transcribed voice note:', note.id)
+            
+            // Generate AI summary using OpenAI
+            const summaryResult = await generateSummary(result.transcript)
+            
+            // Update the note with AI summary
+            updatedNote = await prisma.note.update({
+              where: { id: note.id },
+              data: {
+                summary: summaryResult.summary,
+                summaryGeneratedAt: new Date(),
+                summaryTokensUsed: summaryResult.tokensUsed,
+                keyPoints: JSON.stringify(summaryResult.keyPoints),
+                hasSummary: true,
+                updatedAt: new Date()
+              },
+              include: {
+                tags: {
+                  include: {
+                    tag: true
+                  }
+                }
+              }
+            })
+            
+            console.log('AI summary auto-generated successfully for voice note:', note.id)
+          } catch (summaryError) {
+            console.error('Failed to auto-generate AI summary for voice note:', summaryError)
+            // Don't fail the transcription if summary generation fails
+            // User can manually generate summary later
+          }
+        }
 
         // Only cleanup if we successfully got the transcript
         if (result.transcript && result.transcript.trim().length > 0) {
@@ -175,6 +218,12 @@ export async function GET(
       isProcessing: updatedNote.isProcessing,
       transcriptionStatus: updatedNote.transcriptionStatus,
       transcriptionConfidence: updatedNote.transcriptionConfidence,
+      // AI Summary fields
+      summary: updatedNote.summary,
+      summaryGeneratedAt: updatedNote.summaryGeneratedAt?.toISOString(),
+      summaryTokensUsed: updatedNote.summaryTokensUsed,
+      keyPoints: updatedNote.keyPoints ? JSON.parse(updatedNote.keyPoints) : [],
+      hasSummary: updatedNote.hasSummary,
       tags: updatedNote.tags.map((noteTag: any) => ({
         id: noteTag.tag.id,
         name: noteTag.tag.name,
