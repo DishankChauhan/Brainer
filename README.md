@@ -302,9 +302,6 @@ OPENAI_API_KEY="..."
 - ✅ **Responsive design** optimized for all device sizes
 - ✅ **Security-first architecture** with enterprise-grade authentication
 
-## 👨‍💻 About the Creator
-
-**Dishank Chauhan** is a passionate full-stack developer and AI enthusiast who built Brainer from the ground up. With expertise in modern web technologies, machine learning, and user experience design, Dishank has created a truly innovative solution that pushes the boundaries of what's possible in note-taking applications.
 
 ### **Connect with Dishank**
 - 🌐 **Portfolio**: [portfolio-git-main-dishank-chauhans-projects.vercel.app](https://portfolio-git-main-dishank-chauhans-projects.vercel.app/)
