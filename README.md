@@ -9,9 +9,10 @@
 [![AWS](https://img.shields.io/badge/Amazon_AWS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 
-<div align="center">
-  <img src="brainer/public/image 1.png" alt="Brainer - AI-Powered Note-Taking Revolution" width="100%" />
-</div>
+
+  ![image 1](https://github.com/user-attachments/assets/0012004c-be8e-40eb-90b0-931bdbb13e92)
+
+
 
 ## 🚀 Overview
 
@@ -172,12 +173,11 @@ graph TB
 - **Search Speed**: Instant results across thousands of notes
 - **Uptime**: 99.9% availability with auto-scaling
 
-<div align="center">
-  <img src="brainer/public/image 2.png" alt="Brainer Dashboard Interface" width="80%" />
-  <p><em>Brainer's intuitive dashboard showcasing all core features</em></p>
-</div>
+
 
 ## 🛠️ Development Highlights
+![image 2](https://github.com/user-attachments/assets/0974b04d-d852-46a2-8734-48162369d7d1)
+
 
 ### **Custom Hooks & Components**
 ```typescript
