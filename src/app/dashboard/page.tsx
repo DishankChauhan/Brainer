@@ -10,6 +10,7 @@ import { useNotes } from '@/hooks/useNotes'
 import { useFileUpload } from '@/hooks/useFileUpload'
 import { FileUpload } from '@/components/FileUpload'
 import { MemoryRecall } from '@/components/MemoryRecall'
+import { VoiceAssistant } from '@/components/VoiceAssistant'
 
 interface Note {
   id: string
@@ -62,6 +63,7 @@ export default function Dashboard() {
   const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [isCreatingNote, setIsCreatingNote] = useState(false)
   const [isGeneratingSummary, setIsGeneratingSummary] = useState(false)
+  const [isFirstTimeUser, setIsFirstTimeUser] = useState(false)
   
   // Form state for note editing
   const [noteTitle, setNoteTitle] = useState('')
@@ -406,6 +408,34 @@ export default function Dashboard() {
     }
   }
 
+  // Check if this is a first-time user (client-side only)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const urlParams = new URLSearchParams(window.location.search)
+      setIsFirstTimeUser(urlParams.has('welcome') && notes.length === 0)
+    }
+  }, [notes.length])
+
+  const handleVoiceCreateNote = async (title: string, content: string, tagNames: string[]) => {
+    try {
+      // Create the note using existing function
+      const newNote = await createNote(title, content, []) // Will implement tag mapping later
+      return newNote
+    } catch (error) {
+      console.error('Failed to create note via voice:', error)
+      throw error
+    }
+  }
+
+  const handleVoiceGenerateSummary = async (noteId: string) => {
+    try {
+      await handleGenerateSummary(noteId, false)
+    } catch (error) {
+      console.error('Failed to generate summary via voice:', error)
+      throw error
+    }
+  }
+
   if (authLoading || notesLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -427,38 +457,38 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen bg-gray-50 flex flex-col">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <nav className="bg-white shadow-sm border-b flex-shrink-0">
-        <div className="px-6">
-          <div className="flex justify-between h-16">
-            <div className="flex items-center">
-              <h1 className="text-xl font-semibold text-gray-900">
-                🧠 Brainer
-              </h1>
+      <header className="bg-white shadow-sm border-b border-gray-200">
+        <div className="px-6 py-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="bg-gradient-to-r from-purple-600 to-indigo-600 p-2 rounded-lg">
+                <Brain className="w-6 h-6 text-white" />
+              </div>
+              <h1 className="text-xl font-semibold text-gray-900">Brainer</h1>
             </div>
-            <div className="flex items-center space-x-4">
-              <span className="text-gray-700 text-sm">
-                {user.displayName || user.email}
+            <div className="flex items-center gap-3">
+              <span className="text-sm text-gray-600">
+                {user?.email}
               </span>
               <button
                 onClick={handleSignOut}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium"
+                className="text-sm text-gray-600 hover:text-gray-900"
               >
-                Sign out
+                Sign Out
               </button>
             </div>
           </div>
         </div>
-      </nav>
+      </header>
 
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
+      <div className="flex h-[calc(100vh-80px)]">
         {/* Sidebar */}
-        <div className="w-80 bg-white border-r border-gray-200 flex flex-col max-h-screen">
-          {/* Search */}
-          <div className="p-4 border-b border-gray-200 flex-shrink-0">
-            <div className="relative">
+        <div className="w-80 bg-white border-r border-gray-200 flex flex-col">
+          {/* Search and Filters */}
+          <div className="p-4 border-b border-gray-200">
+            <div className="relative mb-4">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-4 h-4" />
               <input
                 type="text"
@@ -468,245 +498,261 @@ export default function Dashboard() {
                 className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
               />
             </div>
-          </div>
+            
+            {/* Tag Filter */}
+            {tags.length > 0 && (
+              <div className="mb-4">
+                <label className="block text-sm font-medium text-gray-700 mb-2">Filter by tags</label>
+                <div className="flex flex-wrap gap-2">
+                  {tags.map(tag => (
+                    <button
+                      key={tag.id}
+                      onClick={() => {
+                        if (selectedTags.includes(tag.id)) {
+                          setSelectedTags(selectedTags.filter(id => id !== tag.id))
+                        } else {
+                          setSelectedTags([...selectedTags, tag.id])
+                        }
+                      }}
+                      className={`px-2 py-1 rounded-full text-xs font-medium transition-colors ${
+                        selectedTags.includes(tag.id)
+                          ? 'text-white'
+                          : 'text-gray-700 bg-gray-200 hover:bg-gray-300'
+                      }`}
+                      style={{
+                        backgroundColor: selectedTags.includes(tag.id) ? tag.color : undefined
+                      }}
+                    >
+                      {tag.name}
+                    </button>
+                  ))}
+                </div>
+                {selectedTags.length > 0 && (
+                  <button
+                    onClick={() => setSelectedTags([])}
+                    className="text-xs text-gray-500 hover:text-gray-700 mt-2"
+                  >
+                    Clear filters
+                  </button>
+                )}
+              </div>
+            )}
 
-          {/* Create Note Button */}
-          <div className="p-4 border-b border-gray-200 flex-shrink-0">
             <button
               onClick={handleCreateNote}
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium flex items-center justify-center gap-2"
+              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md font-medium flex items-center gap-2"
             >
               <Plus className="w-4 h-4" />
               New Note
             </button>
           </div>
 
-          {/* Scrollable Content Container */}
+          {/* File Upload */}
+          <div className="p-4 border-b border-gray-200">
+            <FileUpload onFileUpload={handleFileUpload} />
+          </div>
+
+          {/* Notes List */}
           <div className="flex-1 overflow-y-auto">
-            {/* File Upload */}
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-3">
-                📎 Quick Capture
-              </h3>
-              <FileUpload onFileUpload={handleFileUpload} />
-            </div>
-
-            {/* Tags Filter */}
-            <div className="p-4 border-b border-gray-200">
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2">
-                <Tag className="w-4 h-4" />
-                Tags
-              </h3>
-              <div className="space-y-2 max-h-48 overflow-y-auto">
-                {tags.map(tag => (
-                  <label key={tag.id} className="flex items-center gap-2 cursor-pointer py-1">
-                    <input
-                      type="checkbox"
-                      checked={selectedTags.includes(tag.id)}
-                      onChange={(e) => {
-                        if (e.target.checked) {
-                          setSelectedTags([...selectedTags, tag.id])
-                        } else {
-                          setSelectedTags(selectedTags.filter(id => id !== tag.id))
-                        }
-                      }}
-                      className="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                    />
-                    <span
-                      className="px-2 py-1 rounded-full text-xs font-medium text-white"
-                      style={{ backgroundColor: tag.color }}
-                    >
-                      {tag.name}
-                    </span>
-                  </label>
-                ))}
+            {filteredNotes.length === 0 ? (
+              <div className="p-4 text-center text-gray-500">
+                {notes.length === 0 ? 'No notes yet' : 'No notes match your search'}
               </div>
-            </div>
-
-            {/* Notes List */}
-            <div className="p-4">
-              <h3 className="text-sm font-medium text-gray-900 mb-3 flex items-center gap-2 sticky top-0 bg-white py-2 -mt-2">
-                <FileText className="w-4 h-4" />
-                Notes ({filteredNotes.length})
-              </h3>
-              <div className="space-y-2">
+            ) : (
+              <div className="space-y-2 p-4">
                 {filteredNotes.map(note => (
                   <div
                     key={note.id}
                     onClick={() => setSelectedNote(note)}
-                    className={`p-3 rounded-lg cursor-pointer border transition-colors relative ${
+                    className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                       selectedNote?.id === note.id
                         ? 'bg-indigo-50 border-indigo-200'
-                        : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                        : 'bg-white border-gray-200 hover:bg-gray-50'
                     }`}
                   >
-                    {note.isProcessing && (
-                      <div className="absolute top-2 right-2">
-                        <div className="flex items-center gap-1">
-                          <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-                          <span className="text-xs text-blue-600 font-medium">Processing</span>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className={`font-medium text-sm truncate ${
+                          selectedNote?.id === note.id ? 'text-indigo-900' : 'text-gray-900'
+                        }`}>
+                          {note.title}
+                        </h3>
+                        <p className={`text-xs mt-1 line-clamp-2 ${
+                          selectedNote?.id === note.id ? 'text-indigo-700' : 'text-gray-600'
+                        }`}>
+                          {note.content.substring(0, 100)}...
+                        </p>
+                        
+                        {/* Processing Status */}
+                        {note.isProcessing && (
+                          <div className="flex items-center gap-1 mt-2">
+                            <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
+                            <span className="text-xs text-blue-600">Processing...</span>
+                          </div>
+                        )}
+                        
+                        {/* Transcription Status */}
+                        {note.transcriptionJobId && (
+                          <div className="mt-2">
+                            <div className={`text-xs px-2 py-1 rounded ${
+                              note.transcriptionStatus === 'COMPLETED' 
+                                ? 'bg-green-100 text-green-700'
+                                : note.transcriptionStatus === 'FAILED'
+                                ? 'bg-red-100 text-red-700'
+                                : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                              {note.transcriptionStatus === 'COMPLETED' 
+                                ? `Transcribed ${note.transcriptionConfidence ? `(${Math.round(note.transcriptionConfidence * 100)}%)` : ''}`
+                                : note.transcriptionStatus === 'FAILED'
+                                ? 'Transcription failed'
+                                : 'Transcribing...'
+                              }
+                            </div>
+                            {note.transcriptionStatus === 'IN_PROGRESS' && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleManualRefresh(note.transcriptionJobId!, note.id)
+                                }}
+                                className="text-xs text-blue-600 hover:text-blue-800 mt-1"
+                              >
+                                Refresh status
+                              </button>
+                            )}
+                          </div>
+                        )}
+                        
+                        {/* Tags */}
+                        {note.tags.length > 0 && (
+                          <div className="flex gap-1 mt-2">
+                            {note.tags.slice(0, 2).map(tag => (
+                              <span
+                                key={tag.id}
+                                className="px-1.5 py-0.5 rounded text-xs font-medium text-white"
+                                style={{ backgroundColor: tag.color }}
+                              >
+                                {tag.name}
+                              </span>
+                            ))}
+                            {note.tags.length > 2 && (
+                              <span className="text-xs text-gray-500">+{note.tags.length - 2}</span>
+                            )}
+                          </div>
+                        )}
+                        
+                        <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                          <Calendar className="w-3 h-3" />
+                          {new Date(note.createdAt).toLocaleDateString()}
+                          {note.hasSummary && (
+                            <>
+                              <span>•</span>
+                              <Brain className="w-3 h-3 text-purple-500" />
+                              <span className="text-purple-600">AI Summary</span>
+                            </>
+                          )}
                         </div>
                       </div>
-                    )}
-                    
-                    <h4 className="font-medium text-gray-900 truncate pr-20 flex items-center gap-2">
-                      {note.title}
-                      {note.hasSummary && (
-                        <Brain className="w-3 h-3 text-purple-500 flex-shrink-0" />
-                      )}
-                    </h4>
-                    <p className="text-sm text-gray-600 mt-1 line-clamp-2">
-                      {note.content.replace(/[#*`]/g, '').substring(0, 100)}
-                    </p>
-                    <div className="flex items-center justify-between mt-2">
-                      <div className="flex gap-1 flex-wrap">
-                        {note.tags.slice(0, 2).map(tag => (
-                          <span
-                            key={tag.id}
-                            className="px-2 py-0.5 rounded-full text-xs font-medium text-white"
-                            style={{ backgroundColor: tag.color }}
-                          >
-                            {tag.name}
-                          </span>
-                        ))}
-                        {note.tags.length > 2 && (
-                          <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-gray-300 text-gray-700">
-                            +{note.tags.length - 2}
-                          </span>
-                        )}
-                      </div>
-                      <span className="text-xs text-gray-500 flex items-center gap-1 flex-shrink-0">
-                        <Calendar className="w-3 h-3" />
-                        {new Date(note.updatedAt).toLocaleDateString()}
-                      </span>
                     </div>
                   </div>
                 ))}
-                
-                {filteredNotes.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-                    <p className="text-sm">No notes found</p>
-                    <p className="text-xs mt-1">
-                      {searchQuery || selectedTags.length > 0 
-                        ? 'Try adjusting your search or filters' 
-                        : 'Create your first note or upload a file'
-                      }
-                    </p>
-                  </div>
-                )}
               </div>
-            </div>
+            )}
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-h-0">
-          {selectedNote || isCreatingNote ? (
-            <div className="flex-1 flex min-h-0">
-              {/* Note Content Column */}
+        {/* Main Content */}
+        <div className="flex-1 flex min-h-0">
+          {selectedNote ? (
+            <div className="flex flex-1 min-h-0">
+              {/* Note Editor/Viewer */}
               <div className="flex-1 flex flex-col min-h-0">
                 {/* Note Header */}
-                <div className="bg-white border-b border-gray-200 px-6 py-4 flex items-center justify-between flex-shrink-0">
-                  <div className="flex-1">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={noteTitle}
-                        onChange={(e) => setNoteTitle(e.target.value)}
-                        placeholder="Note title..."
-                        className="text-xl font-semibold text-gray-900 bg-transparent border-none focus:outline-none focus:ring-0 w-full"
-                      />
-                    ) : (
-                      <h1 className="text-xl font-semibold text-gray-900">
-                        {selectedNote?.title}
-                      </h1>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {isEditing ? (
-                      <>
-                        <button
-                          onClick={handleSaveNote}
-                          className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <Save className="w-4 h-4" />
-                          Save
-                        </button>
-                        <button
-                          onClick={handleCancelEdit}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <X className="w-4 h-4" />
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        {selectedNote?.isProcessing && selectedNote?.transcriptionJobId && (
+                <div className="bg-white border-b border-gray-200 px-6 py-4">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1 min-w-0">
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={noteTitle}
+                          onChange={(e) => setNoteTitle(e.target.value)}
+                          placeholder="Note title..."
+                          className="text-xl font-semibold text-gray-900 bg-transparent border-none outline-none w-full"
+                        />
+                      ) : (
+                        <h1 className="text-xl font-semibold text-gray-900 truncate">
+                          {selectedNote!.title}
+                        </h1>
+                      )}
+                      <p className="text-sm text-gray-600 mt-1">
+                        Created {new Date(selectedNote!.createdAt).toLocaleDateString()} • 
+                        Updated {new Date(selectedNote!.updatedAt).toLocaleDateString()}
+                      </p>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      {isEditing ? (
+                        <>
                           <button
-                            onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
-                            className="bg-blue-100 hover:bg-blue-200 text-blue-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            onClick={handleSaveNote}
+                            className="bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
                           >
-                            <div className="w-3 h-3 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
-                            Check Status
+                            <Save className="w-4 h-4" />
+                            Save
                           </button>
-                        )}
-                        {selectedNote?.transcriptionJobId && 
-                         selectedNote?.transcriptionStatus === 'COMPLETED' && 
-                         selectedNote?.content?.includes('⚠️ Completed with Issues') &&
-                         !selectedNote?.content?.includes('📝 Transcription') && (
                           <button
-                            onClick={() => handleManualRefresh(selectedNote.transcriptionJobId!, selectedNote.id)}
-                            className="bg-orange-100 hover:bg-orange-200 text-orange-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            onClick={handleCancelEdit}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
                           >
-                            <div className="w-3 h-3 border-2 border-orange-600 border-t-transparent rounded-full animate-spin"></div>
-                            Retry Transcription
+                            <X className="w-4 h-4" />
+                            Cancel
                           </button>
-                        )}
-                        {!selectedNote?.hasSummary ? (
+                        </>
+                      ) : (
+                        <>
+                          {!selectedNote!.hasSummary ? (
+                            <button
+                              onClick={() => handleGenerateSummary(selectedNote!.id)}
+                              disabled={isGeneratingSummary}
+                              className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            >
+                              {isGeneratingSummary ? (
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {isGeneratingSummary ? 'Generating...' : 'AI Summary'}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleGenerateSummary(selectedNote!.id, true)}
+                              disabled={isGeneratingSummary}
+                              className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            >
+                              {isGeneratingSummary ? (
+                                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                              ) : (
+                                <Sparkles className="w-4 h-4" />
+                              )}
+                              {isGeneratingSummary ? 'Regenerating...' : 'Regenerate Summary'}
+                            </button>
+                          )}
                           <button
-                            onClick={() => handleGenerateSummary(selectedNote!.id)}
-                            disabled={isGeneratingSummary || !selectedNote?.content || selectedNote.content.length < 50}
-                            className="bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            onClick={() => handleEditNote(selectedNote!)}
+                            className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
                           >
-                            {isGeneratingSummary ? (
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <Brain className="w-4 h-4" />
-                            )}
-                            {isGeneratingSummary ? 'Generating...' : 'AI Summary'}
+                            <Edit3 className="w-4 h-4" />
+                            Edit
                           </button>
-                        ) : (
                           <button
-                            onClick={() => handleGenerateSummary(selectedNote!.id, true)}
-                            disabled={isGeneratingSummary}
-                            className="bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 disabled:from-gray-400 disabled:to-gray-500 text-white px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
+                            onClick={() => handleDeleteNote(selectedNote!.id)}
+                            className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
                           >
-                            {isGeneratingSummary ? (
-                              <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                            ) : (
-                              <Sparkles className="w-4 h-4" />
-                            )}
-                            {isGeneratingSummary ? 'Regenerating...' : 'Regenerate Summary'}
+                            <Trash2 className="w-4 h-4" />
+                            Delete
                           </button>
-                        )}
-                        <button
-                          onClick={() => handleEditNote(selectedNote!)}
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => handleDeleteNote(selectedNote!.id)}
-                          className="bg-red-100 hover:bg-red-200 text-red-700 px-3 py-2 rounded-md text-sm font-medium flex items-center gap-2"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Delete
-                        </button>
-                      </>
-                    )}
+                        </>
+                      )}
+                    </div>
                   </div>
                 </div>
 
@@ -871,6 +917,23 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+      
+      {/* Voice Assistant */}
+      <VoiceAssistant
+        notes={notes}
+        onNoteSelect={(noteId) => {
+          const note = notes.find(n => n.id === noteId)
+          if (note) {
+            setSelectedNote(note)
+            setIsEditing(false)
+            setIsCreatingNote(false)
+          }
+        }}
+        onCreateNote={handleVoiceCreateNote}
+        onGenerateSummary={handleVoiceGenerateSummary}
+        userId={user?.uid}
+        isFirstTime={isFirstTimeUser}
+      />
     </div>
   )
 } 

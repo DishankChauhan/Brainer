@@ -31,9 +31,21 @@ const nextConfig = {
   // Enable static exports if needed
   output: 'standalone',
   
-  // Image optimization settings
+  // Image optimization settings (updated to use remotePatterns)
   images: {
-    domains: ['localhost'],
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '3000',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'localhost',
+        pathname: '/**',
+      }
+    ],
     dangerouslyAllowSVG: true,
   },
   

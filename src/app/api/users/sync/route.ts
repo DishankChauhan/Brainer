@@ -20,17 +20,47 @@ export async function POST(request: NextRequest) {
 
     console.log('Syncing user:', email, 'with UID:', uid)
     
-    // Use upsert to handle user creation/update atomically
-    // This prevents race conditions and deadlocks
-    const user = await prisma.user.upsert({
-      where: { id: uid },
-      update: {
-        email,
-        name: name || email.split('@')[0],
-        image: photoURL,
-        updatedAt: new Date()
-      },
-      create: {
+    // First, try to find existing user by UID
+    let user = await prisma.user.findUnique({
+      where: { id: uid }
+    })
+    
+    if (user) {
+      // User exists, update if needed
+      if (user.email !== email || user.name !== (name || email.split('@')[0]) || user.image !== photoURL) {
+        user = await prisma.user.update({
+          where: { id: uid },
+          data: {
+            email,
+            name: name || email.split('@')[0],
+            image: photoURL,
+            updatedAt: new Date()
+          }
+        })
+        console.log('User updated successfully:', user.id)
+      } else {
+        console.log('User already exists with correct data:', user.id)
+      }
+      return NextResponse.json(user)
+    }
+    
+    // Check if there's already a user with this email (but different UID)
+    const existingEmailUser = await prisma.user.findUnique({
+      where: { email }
+    })
+    
+    if (existingEmailUser) {
+      console.log('User with email already exists but different UID. Potential account conflict.')
+      console.log('Existing UID:', existingEmailUser.id, 'New UID:', uid)
+      
+      // For safety, return the existing user to avoid creating duplicates
+      // In a production app, you might want to handle this differently
+      return NextResponse.json(existingEmailUser)
+    }
+    
+    // Create new user
+    user = await prisma.user.create({
+      data: {
         id: uid,
         email,
         name: name || email.split('@')[0],
@@ -38,60 +68,40 @@ export async function POST(request: NextRequest) {
       }
     })
     
-    console.log('User synced successfully:', user.id)
+    console.log('User created successfully:', user.id)
     return NextResponse.json(user)
     
   } catch (error) {
     console.error('Error syncing user:', error)
     
-    // Handle specific Prisma errors
+    // Handle specific Prisma errors as fallback
     if (error instanceof Error && body) {
       const { uid, email } = body
       
-      // If it's a unique constraint error on email, it means there's already 
-      // a user with this email but different UID - this shouldn't happen in normal flow
-      if (error.message.includes('Unique constraint failed') && 
-          error.message.includes('email')) {
+      // Try to find and return existing user as fallback
+      try {
+        // First try by UID
+        let existingUser = await prisma.user.findUnique({
+          where: { id: uid }
+        })
         
-        try {
-          console.log('Unique constraint on email, checking for existing user...')
-          
-          // Check if there's a user with this email but different UID
-          const existingUser = await prisma.user.findUnique({
-            where: { email }
-          })
-          
-          if (existingUser && existingUser.id !== uid) {
-            console.log('Found user with same email but different UID. This is unusual and may indicate an account migration.')
-            console.log('Returning existing user to avoid conflicts:', existingUser.id)
-            return NextResponse.json(existingUser)
-          }
-          
-          // If user exists with same UID, just return it
-          if (existingUser && existingUser.id === uid) {
-            console.log('User already exists with correct UID:', existingUser.id)
-            return NextResponse.json(existingUser)
-          }
-          
-        } catch (fetchError) {
-          console.error('Error handling unique constraint:', fetchError)
+        if (existingUser) {
+          console.log('Fallback: Found existing user by UID:', existingUser.id)
+          return NextResponse.json(existingUser)
         }
-      }
-      
-      // For other unique constraint errors (on UID), try to fetch existing user
-      if (error.message.includes('Unique constraint failed')) {
-        try {
-          const existingUser = await prisma.user.findUnique({
-            where: { id: uid }
-          })
-          
-          if (existingUser) {
-            console.log('User already exists, returning existing user:', existingUser.id)
-            return NextResponse.json(existingUser)
-          }
-        } catch (fetchError) {
-          console.error('Error fetching existing user:', fetchError)
+        
+        // Then try by email
+        existingUser = await prisma.user.findUnique({
+          where: { email }
+        })
+        
+        if (existingUser) {
+          console.log('Fallback: Found existing user by email:', existingUser.id)
+          return NextResponse.json(existingUser)
         }
+        
+      } catch (fetchError) {
+        console.error('Error in fallback user fetch:', fetchError)
       }
     }
     

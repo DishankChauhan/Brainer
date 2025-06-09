@@ -2,6 +2,7 @@
 
 import React, { useCallback, useState, useRef } from 'react'
 import { Upload, Mic, Camera, X, FileAudio, Image as ImageIcon } from 'lucide-react'
+import { VoiceRecorder } from './VoiceRecorder'
 
 interface FileUploadProps {
   onFileUpload: (file: File, type: 'voice' | 'screenshot') => Promise<void>
@@ -18,6 +19,7 @@ interface UploadingFile {
 
 export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
   const [uploadingFiles, setUploadingFiles] = useState<UploadingFile[]>([])
+  const [showVoiceRecorder, setShowVoiceRecorder] = useState(false)
   const voiceInputRef = useRef<HTMLInputElement>(null)
   const screenshotInputRef = useRef<HTMLInputElement>(null)
 
@@ -66,6 +68,19 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
     }
   }, [onFileUpload])
 
+  const handleVoiceRecording = useCallback(async (audioBlob: Blob, duration: number) => {
+    // Convert blob to file with proper name and type
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const fileName = `voice-recording-${timestamp}.webm`
+    const audioFile = new File([audioBlob], fileName, { 
+      type: audioBlob.type || 'audio/webm' 
+    })
+
+    // Process as file upload
+    await handleFileSelect([audioFile] as any, 'voice')
+    setShowVoiceRecorder(false) // Hide recorder after successful upload
+  }, [handleFileSelect])
+
   const getFileType = (file: File): 'voice' | 'screenshot' | null => {
     if (file.type.startsWith('audio/')) return 'voice'
     if (file.type.startsWith('image/')) return 'screenshot'
@@ -81,6 +96,10 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
   }
 
   const handleVoiceClick = () => {
+    setShowVoiceRecorder(!showVoiceRecorder)
+  }
+
+  const handleFileVoiceClick = () => {
     voiceInputRef.current?.click()
   }
 
@@ -90,24 +109,60 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
 
   return (
     <div className={className}>
+      {/* Voice Recording Section */}
+      {showVoiceRecorder && (
+        <div className="mb-6">
+          <VoiceRecorder 
+            onRecordingComplete={handleVoiceRecording}
+            className="w-full"
+          />
+        </div>
+      )}
+
       {/* Upload Buttons */}
       <div className="space-y-3">
         {/* Voice Recording Button */}
         <button
           onClick={handleVoiceClick}
-          className="w-full flex items-center gap-3 p-4 border-2 border-dashed border-blue-300 rounded-lg bg-blue-50 hover:bg-blue-100 hover:border-blue-400 transition-colors group"
+          className={`w-full flex items-center gap-3 p-4 border-2 border-dashed rounded-lg transition-colors group ${
+            showVoiceRecorder 
+              ? 'border-blue-400 bg-blue-100' 
+              : 'border-blue-300 bg-blue-50 hover:bg-blue-100 hover:border-blue-400'
+          }`}
         >
-          <div className="flex-shrink-0 w-10 h-10 bg-blue-500 rounded-full flex items-center justify-center group-hover:bg-blue-600 transition-colors">
+          <div className={`flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center transition-colors ${
+            showVoiceRecorder 
+              ? 'bg-blue-600' 
+              : 'bg-blue-500 group-hover:bg-blue-600'
+          }`}>
             <Mic className="w-5 h-5 text-white" />
           </div>
           <div className="flex-1 text-left">
-            <div className="font-medium text-blue-900">Record Voice Note</div>
-            <div className="text-sm text-blue-700">Upload audio files • MP3, WAV, M4A</div>
+            <div className="font-medium text-blue-900">
+              {showVoiceRecorder ? 'Hide Voice Recorder' : 'Record Voice Note'}
+            </div>
+            <div className="text-sm text-blue-700">
+              {showVoiceRecorder ? 'Click to close the voice recorder' : 'Record directly in your browser'}
+            </div>
           </div>
           <Upload className="w-4 h-4 text-blue-600 opacity-60" />
         </button>
 
-        {/* Hidden Voice Input */}
+        {/* Alternative: Upload Voice File */}
+        <button
+          onClick={handleFileVoiceClick}
+          className="w-full flex items-center gap-3 p-3 border border-blue-200 rounded-lg bg-white hover:bg-blue-50 transition-colors group"
+        >
+          <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center group-hover:bg-blue-200 transition-colors">
+            <FileAudio className="w-4 h-4 text-blue-600" />
+          </div>
+          <div className="flex-1 text-left">
+            <div className="font-medium text-blue-800 text-sm">Or Upload Audio File</div>
+            <div className="text-xs text-blue-600">MP3, WAV, M4A, AAC</div>
+          </div>
+        </button>
+
+        {/* Hidden Voice File Input */}
         <input
           ref={voiceInputRef}
           type="file"
