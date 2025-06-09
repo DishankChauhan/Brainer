@@ -1,4 +1,4 @@
-# 🧠 Brainer - AI-Powered Note-Taking Revolution
+# Brainer - AI-Powered Note-Taking Revolution
 
 > **Built from scratch by [Dishank Chauhan](https://github.com/DishankChauhan)**  
 > *Transforming how we capture, organize, and recall information with AI*
