@@ -303,7 +303,7 @@ OPENAI_API_KEY="..."
 - ✅ **Security-first architecture** with enterprise-grade authentication
 
 
-### **Connect with Dishank**
+### **Connect with Me**
 - 🌐 **Portfolio**: [portfolio-git-main-dishank-chauhans-projects.vercel.app](https://portfolio-git-main-dishank-chauhans-projects.vercel.app/)
 - 💼 **LinkedIn**: [linkedin.com/in/dishank-chauhan-186853207](https://www.linkedin.com/in/dishank-chauhan-186853207/)
 - 🐙 **GitHub**: [github.com/DishankChauhan](https://github.com/DishankChauhan)
