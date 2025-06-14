@@ -1,4 +1,4 @@
-# 🧠 Brainer - AI-Powered Note-Taking Revolution
+# Brainer - AI-Powered Note-Taking Revolution
 
 > **Built from scratch by [Dishank Chauhan](https://github.com/DishankChauhan)**  
 > *Transforming how we capture, organize, and recall information with AI*
@@ -9,9 +9,10 @@
 [![AWS](https://img.shields.io/badge/Amazon_AWS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 
-<div align="center">
-  <img src="brainer/public/image 1.png" alt="Brainer - AI-Powered Note-Taking Revolution" width="100%" />
-</div>
+
+  ![image 1](https://github.com/user-attachments/assets/0012004c-be8e-40eb-90b0-931bdbb13e92)
+
+
 
 ## 🚀 Overview
 
@@ -172,12 +173,11 @@ graph TB
 - **Search Speed**: Instant results across thousands of notes
 - **Uptime**: 99.9% availability with auto-scaling
 
-<div align="center">
-  <img src="brainer/public/image 2.png" alt="Brainer Dashboard Interface" width="80%" />
-  <p><em>Brainer's intuitive dashboard showcasing all core features</em></p>
-</div>
+
 
 ## 🛠️ Development Highlights
+![image 2](https://github.com/user-attachments/assets/0974b04d-d852-46a2-8734-48162369d7d1)
+
 
 ### **Custom Hooks & Components**
 ```typescript
@@ -302,11 +302,8 @@ OPENAI_API_KEY="..."
 - ✅ **Responsive design** optimized for all device sizes
 - ✅ **Security-first architecture** with enterprise-grade authentication
 
-## 👨‍💻 About the Creator
 
-**Dishank Chauhan** is a passionate full-stack developer and AI enthusiast who built Brainer from the ground up. With expertise in modern web technologies, machine learning, and user experience design, Dishank has created a truly innovative solution that pushes the boundaries of what's possible in note-taking applications.
-
-### **Connect with Dishank**
+### **Connect with Me**
 - 🌐 **Portfolio**: [portfolio-git-main-dishank-chauhans-projects.vercel.app](https://portfolio-git-main-dishank-chauhans-projects.vercel.app/)
 - 💼 **LinkedIn**: [linkedin.com/in/dishank-chauhan-186853207](https://www.linkedin.com/in/dishank-chauhan-186853207/)
 - 🐙 **GitHub**: [github.com/DishankChauhan](https://github.com/DishankChauhan)
