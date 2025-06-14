@@ -224,6 +224,49 @@ async function processVoiceFile(
   }
 }
 
+// Text cleaning function to remove OCR artifacts and unwanted symbols
+function cleanOCRText(text: string): string {
+  if (!text) return text
+  
+  return text
+    // Remove common OCR artifacts and symbols
+    .replace(/[®©™¥€£¢§¶†‡•‰‱°′″‴]/g, '') // Remove trademark, currency, and special symbols
+    .replace(/[^\w\s\-.,!?;:()\[\]{}'"@#$%&*+=<>/\\|`~\n]/g, '') // Keep only common punctuation, alphanumeric, and newlines
+    
+    // Fix common OCR spacing issues
+    .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between lowercase and uppercase letters
+    .replace(/([.!?])([A-Z])/g, '$1\n\n$2') // Add line breaks after sentences that start new topics
+    .replace(/([a-z])(\d)/g, '$1 $2') // Add space between letters and numbers
+    .replace(/(\d)([a-z])/g, '$1 $2') // Add space between numbers and letters
+    
+    // Handle bullet points and lists
+    .replace(/([.!?])\s*([•○▪▫-])/g, '$1\n\n$2') // Line break before bullet points
+    .replace(/^([•○▪▫-])/gm, '\n$1') // Ensure bullet points start on new lines
+    .replace(/([•○▪▫-])\s*/g, '• ') // Normalize bullet points
+    
+    // Handle numbered lists
+    .replace(/(\d+\.)\s*/g, '\n$1 ') // Put numbered items on new lines
+    
+    // Handle common document structures
+    .replace(/([A-Z][A-Z\s]{3,})/g, '\n\n**$1**\n') // Convert ALL CAPS headers to bold headers
+    .replace(/^([A-Z][a-z]+:)/gm, '\n**$1**') // Convert "Label:" patterns to bold
+    
+    // Fix paragraph breaks
+    .replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2') // Add paragraph breaks between sentences
+    .replace(/\n\s*\n\s*\n+/g, '\n\n') // Normalize multiple line breaks to double
+    .replace(/\n{4,}/g, '\n\n\n') // Limit to maximum 3 line breaks
+    
+    // Clean up spacing
+    .replace(/\s+/g, ' ') // Replace multiple spaces with single space (but preserve newlines)
+    .replace(/\n /g, '\n') // Remove spaces at beginning of lines
+    .replace(/ \n/g, '\n') // Remove spaces at end of lines
+    
+    // Final cleanup
+    .replace(/^\s+|\s+$/g, '') // Trim leading/trailing spaces
+    .replace(/^[^\w\s]*|[^\w\s]*$/g, '') // Remove leading/trailing non-word characters
+    .trim()
+}
+
 // OCR processing with Tesseract.js - configured for Next.js
 async function processImageFile(buffer: Buffer, filename: string): Promise<string> {
   try {
@@ -241,11 +284,21 @@ async function processImageFile(buffer: Buffer, filename: string): Promise<strin
     // Clean up the worker
     await worker.terminate()
     
-    if (!text.trim()) {
+    // Clean the extracted text to remove OCR artifacts
+    const cleanedText = cleanOCRText(text)
+    
+    if (!cleanedText.trim()) {
       return `# Screenshot Processed\n\n**File:** ${filename}\n\n*No text was detected in this image.*\n\nThis could be because:\n- The image contains no text\n- The text is too small or blurry\n- The image is mainly graphics/diagrams\n\nYou can still use this note to:\n- Add manual descriptions\n- Reference the original screenshot\n- Add relevant tags`
     }
     
-    return `# Screenshot Text Extraction\n\n**File:** ${filename}\n\n## Extracted Text:\n\n${text.trim()}\n\n---\n\n*Text extracted using OCR technology. Some formatting may be lost.*`
+    // Format the extracted text nicely
+    const formattedText = cleanedText
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0)
+      .join('\n\n')
+    
+    return `# 📸 Screenshot - ${new Date().toLocaleDateString()}\n\n**File:** ${filename}\n**Extracted:** ${new Date().toLocaleTimeString()}\n\n---\n\n## 📄 Extracted Text:\n\n${formattedText}\n\n---\n\n*✨ Text extracted and formatted using OCR technology*`
     
   } catch (error) {
     // Fallback: create a note without OCR
