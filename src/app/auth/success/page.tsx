@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { CheckCircle, Loader2 } from 'lucide-react';
@@ -11,7 +11,7 @@ interface PaymentSession {
   payment_status: string;
 }
 
-export default function SuccessPage() {
+function SuccessPageContent() {
   const searchParams = useSearchParams();
   const sessionId = searchParams.get('session_id');
   
@@ -136,5 +136,25 @@ export default function SuccessPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+function LoadingFallback() {
+  return (
+    <div className="min-h-screen bg-[#111111] flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-8 h-8 animate-spin text-indigo-500 mx-auto mb-4" />
+        <h2 className="text-xl text-white mb-2">Loading...</h2>
+        <p className="text-gray-400">Please wait while we prepare your page.</p>
+      </div>
+    </div>
+  );
+}
+
+export default function SuccessPage() {
+  return (
+    <Suspense fallback={<LoadingFallback />}>
+      <SuccessPageContent />
+    </Suspense>
   );
 } 
