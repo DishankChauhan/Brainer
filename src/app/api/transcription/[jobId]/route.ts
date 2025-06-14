@@ -4,14 +4,14 @@ import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcrib
 import { TranscriptionJobStatus } from '@aws-sdk/client-transcribe'
 import { generateSummary } from '@/lib/openai'
 import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
+import { withResourceOwnership, AuthenticatedRequest, getTranscriptionJobOwner } from '@/lib/auth-middleware'
 
-export async function GET(
-  request: NextRequest,
+async function getTranscriptionHandler(
+  request: AuthenticatedRequest,
   { params }: { params: Promise<{ jobId: string }> }
 ) {
   try {
     const { jobId } = await params
-    console.log('Checking transcription status for job:', jobId)
 
     if (!isTranscribeAvailable()) {
       return NextResponse.json(
@@ -46,8 +46,6 @@ export async function GET(
         note.content.includes('📝 Transcription') && 
         !note.content.includes('⚠️ Completed with Issues') &&
         !note.isProcessing) {
-      console.log('Note already has successful transcript, returning cached result')
-      
       const transformedNote = {
         id: note.id,
         title: note.title,
@@ -81,14 +79,10 @@ export async function GET(
     const transcribeService = new AWSTranscribeService()
     const result = await transcribeService.getTranscriptionResult(jobId)
 
-    console.log('Transcription status:', result.status, 'Has transcript:', !!result.transcript)
-
     // Update note based on transcription status
     let updatedNote = note
     
     if (result.status === TranscriptionJobStatus.COMPLETED) {
-      console.log('Transcription completed, updating note')
-      
       if (result.transcript && result.transcript.trim()) {
         // Create updated content with transcript
         const confidence = result.confidence ? ` (${Math.round(result.confidence * 100)}% confidence)` : ''
@@ -114,8 +108,6 @@ export async function GET(
         // AUTO-GENERATE AI SUMMARY after successful transcription
         if (result.transcript && result.transcript.trim().length >= 50) {
           try {
-            console.log('Auto-generating AI summary for transcribed voice note:', note.id)
-            
             // Generate AI summary using OpenAI
             const summaryResult = await generateSummary(result.transcript)
             
@@ -138,10 +130,7 @@ export async function GET(
                 }
               }
             })
-            
-            console.log('AI summary auto-generated successfully for voice note:', note.id)
           } catch (summaryError) {
-            console.error('Failed to auto-generate AI summary for voice note:', summaryError)
             // Don't fail the transcription if summary generation fails
             // User can manually generate summary later
           }
@@ -150,8 +139,6 @@ export async function GET(
         // AUTO-GENERATE EMBEDDING after successful transcription
         if (result.transcript && result.transcript.trim().length >= 10) {
           try {
-            console.log('Auto-generating embedding for transcribed voice note:', note.id)
-            
             // Prepare content for embedding (include title and transcript)
             const contentForEmbedding = prepareContentForEmbedding(result.transcript)
             const fullText = `${note.title}\n\n${contentForEmbedding}`
@@ -169,10 +156,7 @@ export async function GET(
                 "hasEmbedding" = true
               WHERE id = ${note.id}
             `
-            
-            console.log('Embedding auto-generated successfully for voice note:', note.id)
           } catch (embeddingError) {
-            console.error('Failed to auto-generate embedding for voice note:', embeddingError)
             // Don't fail the transcription if embedding generation fails
           }
         }
@@ -183,8 +167,6 @@ export async function GET(
           if (note.transcriptionS3Key) {
             await transcribeService.cleanupFiles(note.transcriptionS3Key, jobId)
           }
-        } else {
-          console.log('AWS Transcribe: Skipping cleanup - no transcript retrieved')
         }
       } else {
         // Transcription completed but no transcript received
@@ -208,10 +190,7 @@ export async function GET(
         })
       }
     } else if (result.status === TranscriptionJobStatus.FAILED) {
-      console.log('Transcription failed, updating note')
-      
-      const errorMessage = result.error || 'Unknown transcription error'
-      const updatedContent = `# 🎙️ Voice Recording - Transcription Failed\n\n**File:** ${note.title.replace('🎙️ Voice Note - ', '')}\n**Transcription Job:** ${jobId}\n**Status:** ❌ Failed\n\n## ⚠️ Transcription Error\n\n**Error:** ${errorMessage}\n\n**What you can do:**\n- Try uploading the audio file again\n- Check if the audio file format is supported\n- Add manual transcription below\n\n---\n\n**Manual Transcription Area:**\n\n*Click Edit to add your transcription here...*\n\n---\n\n**Supported formats:** MP3, WAV, M4A, AAC, OGG, FLAC\n**Max file size:** 2GB\n**Max duration:** 4 hours`
+      const updatedContent = `# 🎙️ Voice Recording - Transcription Failed\n\n**File:** ${note.title.replace('🎙️ Voice Note - ', '')}\n**Transcription Job:** ${jobId}\n**Status:** ❌ Failed\n\n## ❌ Transcription Error\n\nThe transcription service encountered an error processing your audio file.\n\n**What you can do:**\n- Try uploading the audio file again\n- Check if the audio file format is supported\n- Ensure the audio quality is good\n- Add manual transcription below\n\n---\n\n**Manual Transcription Area:**\n\n*Click Edit to add your transcription here...*`
 
       updatedNote = await prisma.note.update({
         where: { id: note.id },
@@ -277,4 +256,7 @@ export async function GET(
       { status: 500 }
     )
   }
-} 
+}
+
+// Export handler with authentication and resource ownership
+export const GET = withResourceOwnership(getTranscriptionJobOwner)(getTranscriptionHandler) 

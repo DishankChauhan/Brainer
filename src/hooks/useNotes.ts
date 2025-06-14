@@ -49,13 +49,30 @@ interface SimilarNote {
 }
 
 export function useNotes() {
-  const { user } = useAuth()
+  const { user, getAuthToken } = useAuth()
   const [notes, setNotes] = useState<Note[]>([])
   const [tags, setTags] = useState<Tag[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
   console.log('useNotes: Hook called, user:', user?.email || 'none')
+
+  // Helper function to make authenticated API calls
+  const makeAuthenticatedRequest = useCallback(async (url: string, options: RequestInit = {}) => {
+    const token = await getAuthToken()
+    if (!token) {
+      throw new Error('Authentication token not available')
+    }
+
+    return fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`,
+        ...options.headers
+      }
+    })
+  }, [getAuthToken])
 
   // Sync Firebase user with local database
   const syncUser = async () => {
@@ -129,7 +146,7 @@ export function useNotes() {
     if (!user?.uid) return
     
     try {
-      const response = await fetch(`/api/notes?userId=${user.uid}`)
+      const response = await makeAuthenticatedRequest('/api/notes')
       if (!response.ok) throw new Error('Failed to fetch notes')
       const data = await response.json()
       setNotes(data)
@@ -154,22 +171,12 @@ export function useNotes() {
   const createNote = async (title: string, content: string, tagIds: string[] = []) => {
     if (!user?.uid) return null
 
-    console.log('useNotes: createNote called', { title, content, tagIds, userId: user.uid })
-
     try {
-      // Ensure user is synced first
-      const userSynced = await syncUser()
-      if (!userSynced) return null
-
-      console.log('useNotes: Making API call to create note')
-
-      const response = await fetch('/api/notes', {
+      const response = await makeAuthenticatedRequest('/api/notes', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           content,
-          userId: user.uid,
           tagIds
         })
       })
@@ -179,7 +186,6 @@ export function useNotes() {
         throw new Error(errorData.error || 'Failed to create note')
       }
       const newNote = await response.json()
-      console.log('useNotes: Note created successfully:', newNote.id)
       setNotes(prev => [newNote, ...prev])
       return newNote
     } catch (err) {
@@ -192,9 +198,8 @@ export function useNotes() {
   // Update note
   const updateNote = async (id: string, title: string, content: string, tagIds: string[] = []) => {
     try {
-      const response = await fetch(`/api/notes/${id}`, {
+      const response = await makeAuthenticatedRequest(`/api/notes/${id}`, {
         method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title,
           content,
@@ -219,7 +224,7 @@ export function useNotes() {
   // Delete note
   const deleteNote = async (id: string) => {
     try {
-      const response = await fetch(`/api/notes/${id}`, {
+      const response = await makeAuthenticatedRequest(`/api/notes/${id}`, {
         method: 'DELETE'
       })
       
@@ -239,9 +244,8 @@ export function useNotes() {
   // Create tag
   const createTag = async (name: string, color: string = '#3B82F6') => {
     try {
-      const response = await fetch('/api/tags', {
+      const response = await makeAuthenticatedRequest('/api/tags', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, color })
       })
       
@@ -262,9 +266,8 @@ export function useNotes() {
   // Generate AI summary for a note
   const generateSummary = async (noteId: string, forceRegenerate: boolean = false) => {
     try {
-      const response = await fetch(`/api/notes/${noteId}/summarize`, {
+      const response = await makeAuthenticatedRequest(`/api/notes/${noteId}/summarize`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ forceRegenerate })
       })
       
@@ -292,9 +295,8 @@ export function useNotes() {
   // Generate embedding for a note
   const generateEmbedding = async (noteId: string, forceRegenerate: boolean = false) => {
     try {
-      const response = await fetch(`/api/notes/${noteId}/embedding`, {
+      const response = await makeAuthenticatedRequest(`/api/notes/${noteId}/embedding`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ forceRegenerate })
       })
       
@@ -325,18 +327,30 @@ export function useNotes() {
       return []
     }
     
-    console.log('findSimilarNotes: Calling API with:', { query: query.substring(0, 50), userId: user.uid, limit, noteId: excludeNoteId })
+    console.log('findSimilarNotes: Input parameters:', { 
+      query: query.substring(0, 50), 
+      queryLength: query.length,
+      limit, 
+      excludeNoteId,
+      userId: user.uid 
+    })
     
     try {
-      const response = await fetch('/api/search/similar', {
+      // Only include noteId if it's provided
+      const requestBody: { query: string; limit: number; noteId?: string } = {
+        query,
+        limit
+      }
+      
+      if (excludeNoteId) {
+        requestBody.noteId = excludeNoteId
+      }
+      
+      console.log('findSimilarNotes: Request body being sent:', requestBody)
+      
+      const response = await makeAuthenticatedRequest('/api/search/similar', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          query,
-          userId: user.uid,
-          limit,
-          noteId: excludeNoteId
-        })
+        body: JSON.stringify(requestBody)
       })
       
       console.log('findSimilarNotes: API response status:', response.status, response.statusText)
@@ -355,14 +369,13 @@ export function useNotes() {
       setError(err instanceof Error ? err.message : 'Failed to find similar notes')
       return []
     }
-  }, [user?.uid])
+  }, [user?.uid, makeAuthenticatedRequest])
 
   // Extract topics and concepts from a note
   const extractTopics = async (noteId: string, forceRegenerate: boolean = false) => {
     try {
-      const response = await fetch(`/api/notes/${noteId}/topics`, {
+      const response = await makeAuthenticatedRequest(`/api/notes/${noteId}/topics`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ forceRegenerate })
       })
       
@@ -377,7 +390,7 @@ export function useNotes() {
       setNotes(prev => prev.map(note => 
         note.id === noteId ? { 
           ...note, 
-          extractedTopics: result.topics,
+          extractedTopics: result.topics, 
           hasTopics: true,
           topicsGeneratedAt: new Date().toISOString()
         } : note

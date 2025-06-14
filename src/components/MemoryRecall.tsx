@@ -33,7 +33,7 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
   // Faster debounce with instant feedback for short queries
   useEffect(() => {
     // Instant feedback for very short queries
-    if (currentContent.length > 0 && currentContent.length < 10) {
+    if (currentContent.length > 0 && currentContent.length < 5) {
       setSimilarNotes([])
       setShowMemoryRecall(false)
       setLoading(false)
@@ -41,7 +41,7 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
     }
 
     // Don't search for empty content
-    if (!currentContent || currentContent.length < 10) {
+    if (!currentContent || currentContent.length < 5) {
       setSimilarNotes([])
       setShowMemoryRecall(false)
       return
@@ -66,13 +66,19 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
       }
       lastQueryRef.current = currentContent
 
-      console.log('Memory Recall: Starting search with content:', currentContent.substring(0, 50) + '...')
+      console.log('Memory Recall: Starting search with content:', currentContent.substring(0, 100) + '...')
+      console.log('Memory Recall: Content length:', currentContent.length)
       console.log('Memory Recall: Current note ID to exclude:', currentNoteId)
 
       setLoading(true)
       try {
         const results = await findSimilarNotes(currentContent, 3, currentNoteId)
         console.log('Memory Recall: Search results:', results.length, 'notes found')
+        console.log('Memory Recall: Results details:', results.map(r => ({
+          id: r.id,
+          title: r.title.substring(0, 30),
+          similarity: r.similarity
+        })))
         
         // Cache the results
         cacheRef.current.set(cacheKey, results)
@@ -94,10 +100,10 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
       } finally {
         setLoading(false)
       }
-    }, 800) // Reduced from 2000ms to 800ms for much faster response
+    }, 600) // Reduced from 800ms to 600ms for faster response
 
     return () => clearTimeout(timer)
-  }, [currentContent, currentNoteId, findSimilarNotes]) // Now it's safe to include findSimilarNotes since it's memoized
+  }, [currentContent, currentNoteId, findSimilarNotes])
 
   // Clear cache when currentNoteId changes
   useEffect(() => {
@@ -140,7 +146,7 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
           Keep typing to discover related notes...
         </p>
         <p className="text-xs mt-1 opacity-75">
-          Memory Recall activates with 10+ characters
+          Memory Recall activates with 5+ characters
         </p>
       </div>
     )
@@ -224,12 +230,15 @@ export function MemoryRecall({ currentContent, currentNoteId, onNoteSelect, clas
       )}
 
       {/* No Results */}
-      {!loading && similarNotes.length === 0 && currentContent.length >= 10 && (
+      {!loading && similarNotes.length === 0 && currentContent.length >= 5 && (
         <div className="text-center py-6 text-gray-500">
           <Search className="w-6 h-6 mx-auto mb-2 opacity-50" />
           <p className="text-sm">No similar notes found</p>
           <p className="text-xs mt-1 opacity-75">
             This might be a new topic for you!
+          </p>
+          <p className="text-xs mt-2 text-purple-600">
+            Searched: "{currentContent.substring(0, 50)}{currentContent.length > 50 ? '...' : ''}"
           </p>
         </div>
       )}

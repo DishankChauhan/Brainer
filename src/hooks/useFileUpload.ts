@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useAuth } from '@/components/AuthProvider'
 
 export function useFileUpload() {
-  const { user } = useAuth()
+  const { user, getAuthToken } = useAuth()
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -17,6 +17,12 @@ export function useFileUpload() {
     setError(null)
 
     try {
+      // Get Firebase authentication token
+      const token = await getAuthToken()
+      if (!token) {
+        throw new Error('Failed to get authentication token')
+      }
+
       const formData = new FormData()
       formData.append('file', file)
       formData.append('userId', user.uid)
@@ -26,6 +32,9 @@ export function useFileUpload() {
 
       const response = await fetch('/api/upload', {
         method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        },
         body: formData
       })
 

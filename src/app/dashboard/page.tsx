@@ -40,7 +40,7 @@ interface Tag {
 }
 
 export default function Dashboard() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, getAuthToken } = useAuth()
   const router = useRouter()
   const { 
     notes, 
@@ -91,7 +91,18 @@ export default function Dashboard() {
     const refreshSelectedNoteIfNeeded = async () => {
       if (selectedNote?.transcriptionJobId && selectedNote?.transcriptionStatus === 'COMPLETED') {
         try {
-          const response = await fetch(`/api/transcription/${selectedNote.transcriptionJobId}`)
+          // Get authentication token
+          const token = await getAuthToken()
+          if (!token) {
+            console.error('❌ Failed to get authentication token for note refresh')
+            return
+          }
+          
+          const response = await fetch(`/api/transcription/${selectedNote.transcriptionJobId}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`
+            }
+          })
           if (response.ok) {
             const data = await response.json()
             if (data.note && data.note.id === selectedNote.id) {
@@ -106,7 +117,7 @@ export default function Dashboard() {
     }
     
     refreshSelectedNoteIfNeeded()
-  }, [selectedNote?.id, selectedNote?.transcriptionJobId])
+  }, [selectedNote?.id, selectedNote?.transcriptionJobId, getAuthToken])
 
   const handleSignOut = async () => {
     try {
@@ -262,7 +273,18 @@ export default function Dashboard() {
       try {
         console.log('🔍 Polling transcription status for job:', jobId)
         
-        const response = await fetch(`/api/transcription/${jobId}`)
+        // Get authentication token
+        const token = await getAuthToken()
+        if (!token) {
+          console.error('❌ Failed to get authentication token for polling')
+          return
+        }
+        
+        const response = await fetch(`/api/transcription/${jobId}`, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
         console.log('📡 Transcription API response:', {
           url: `/api/transcription/${jobId}`,
           status: response.status,
@@ -366,7 +388,18 @@ export default function Dashboard() {
     console.log('Manual refresh triggered for job:', jobId, 'note:', noteId)
     
     try {
-      const response = await fetch(`/api/transcription/${jobId}`)
+      // Get authentication token
+      const token = await getAuthToken()
+      if (!token) {
+        console.error('❌ Failed to get authentication token for manual refresh')
+        return
+      }
+      
+      const response = await fetch(`/api/transcription/${jobId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
       if (!response.ok) {
         console.error('Failed to refresh transcription status:', response.status, response.statusText)
         return

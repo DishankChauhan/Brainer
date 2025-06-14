@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/prisma';
 import { generateSummary } from '@/lib/openai';
+import { withResourceOwnership, AuthenticatedRequest, getNoteOwner } from '@/lib/auth-middleware';
+import { withValidation, booleanOptionSchema } from '@/lib/input-validation';
 
 interface RouteParams {
   params: Promise<{
@@ -8,13 +10,15 @@ interface RouteParams {
   }>;
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+async function summarizeNoteHandler(
+  request: AuthenticatedRequest,
+  validatedData: { forceRegenerate?: boolean },
+  { params }: RouteParams
+) {
   try {
     const { id } = await params;
-    const { forceRegenerate } = await request.json().catch(() => ({}));
+    const { forceRegenerate } = validatedData;
     
-    console.log('POST /api/notes/[id]/summarize - noteId:', id);
-
     // Find the note
     const note = await prisma.note.findUnique({
       where: { id },
@@ -69,8 +73,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }, { status: 400 });
     }
 
-    console.log('Generating AI summary for note:', id);
-
     // Generate the summary using OpenAI
     const summaryResult = await generateSummary(note.content);
 
@@ -93,8 +95,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         }
       }
     });
-
-    console.log('Summary generated successfully for note:', id);
 
     // Transform the response
     const transformedNote = {
@@ -126,8 +126,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     });
 
   } catch (error) {
-    console.error('Error generating summary:', error);
-    
     if (error instanceof Error) {
       if (error.message.includes('OPENAI_API_KEY')) {
         return NextResponse.json({ 
@@ -147,4 +145,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 });
   }
-} 
+}
+
+// Export handler with authentication, resource ownership, and input validation
+export const POST = withResourceOwnership(getNoteOwner)(
+  async (request: AuthenticatedRequest, { params }: RouteParams) => {
+    try {
+      const body = await request.json().catch(() => ({}))
+      const validatedData = booleanOptionSchema.parse(body)
+      return await summarizeNoteHandler(request, validatedData, { params })
+    } catch (error) {
+      return NextResponse.json({
+        error: 'Invalid input format'
+      }, { status: 400 })
+    }
+  }
+); 

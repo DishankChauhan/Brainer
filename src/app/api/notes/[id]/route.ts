@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
+import { withResourceOwnership, AuthenticatedRequest, getNoteOwner } from '@/lib/auth-middleware'
+import { noteSchema } from '@/lib/input-validation'
 
 interface NoteTag {
   tag: {
@@ -11,8 +13,8 @@ interface NoteTag {
 }
 
 // GET - Fetch a specific note
-export async function GET(
-  request: NextRequest,
+async function getNoteHandler(
+  request: AuthenticatedRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -62,20 +64,19 @@ export async function GET(
 
     return NextResponse.json(transformedNote)
   } catch (error) {
-    console.error('Error fetching note:', error)
     return NextResponse.json({ error: 'Failed to fetch note' }, { status: 500 })
   }
 }
 
-// PUT - Update a note
-export async function PUT(
-  request: NextRequest,
+// PUT handler for updating notes
+async function updateNoteHandler(
+  request: AuthenticatedRequest,
+  validatedData: { title?: string; content?: string; tagIds?: string[] },
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id } = await params
-    const body = await request.json()
-    const { title, content, tagIds } = body
+    const { title, content, tagIds } = validatedData
 
     // Update the note
     await prisma.note.update({
@@ -90,8 +91,6 @@ export async function PUT(
     // AUTO-GENERATE/UPDATE EMBEDDING when content changes and has sufficient content
     if (content && shouldGenerateEmbedding(content)) {
       try {
-        console.log('Auto-generating/updating embedding for note:', id)
-        
         // Prepare content for embedding
         const contentForEmbedding = prepareContentForEmbedding(content)
         const fullText = `${title || 'Untitled Note'}\n\n${contentForEmbedding}`
@@ -110,9 +109,7 @@ export async function PUT(
           WHERE id = ${id}
         `
         
-        console.log('Embedding auto-generated/updated successfully for note:', id)
       } catch (embeddingError) {
-        console.error('Failed to auto-generate/update embedding for note:', embeddingError)
         // Don't fail the note update if embedding generation fails
       }
     }
@@ -177,14 +174,13 @@ export async function PUT(
 
     return NextResponse.json(transformedNote)
   } catch (error) {
-    console.error('Error updating note:', error)
     return NextResponse.json({ error: 'Failed to update note' }, { status: 500 })
   }
 }
 
 // DELETE - Delete a note
-export async function DELETE(
-  request: NextRequest,
+async function deleteNoteHandler(
+  request: AuthenticatedRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
@@ -202,7 +198,23 @@ export async function DELETE(
 
     return NextResponse.json({ message: 'Note deleted successfully' })
   } catch (error) {
-    console.error('Error deleting note:', error)
     return NextResponse.json({ error: 'Failed to delete note' }, { status: 500 })
   }
-} 
+}
+
+// Export handlers with authentication and resource ownership middleware
+export const GET = withResourceOwnership(getNoteOwner)(getNoteHandler)
+export const PUT = withResourceOwnership(getNoteOwner)(
+  async (request: AuthenticatedRequest, { params }: { params: Promise<{ id: string }> }) => {
+    try {
+      const body = await request.json()
+      const validatedData = noteSchema.parse(body)
+      return await updateNoteHandler(request, validatedData, { params })
+    } catch (error) {
+      return NextResponse.json({
+        error: 'Invalid input format'
+      }, { status: 400 })
+    }
+  }
+)
+export const DELETE = withResourceOwnership(getNoteOwner)(deleteNoteHandler) 

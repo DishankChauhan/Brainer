@@ -1,173 +1,170 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { generateEmbedding, prepareContentForEmbedding, SimilarNote } from '@/lib/embeddings'
+import { generateEmbedding } from '@/lib/embeddings'
+import { withAuth, AuthenticatedRequest } from '@/lib/auth-middleware'
+import { similarSearchSchema } from '@/lib/input-validation'
 
-export async function POST(request: NextRequest) {
+interface SimilarNote {
+  id: string
+  title: string
+  content: string
+  similarity: number
+  createdAt: string
+  summary?: string
+}
+
+async function similarSearchHandler(
+  request: AuthenticatedRequest,
+  validatedData: { query: string; limit?: number; noteId?: string }
+) {
   try {
-    const { query, userId, limit = 5, noteId } = await request.json()
-    
-    console.log('POST /api/search/similar - query length:', query?.length, 'userId:', userId)
+    const { query, limit = 5, noteId } = validatedData
+    const userId = request.user.uid // Get userId from authenticated user
 
-    if (!query || !userId) {
-      return NextResponse.json({ error: 'Query and userId are required' }, { status: 400 })
-    }
+    console.log('Similar search: Starting search for user:', userId)
+    console.log('Similar search: Query:', query)
+    console.log('Similar search: Exclude note ID:', noteId)
 
-    // For very short queries, return empty results quickly
-    if (query.length < 10) {
+    // First, let's see how many notes this user has
+    const totalNotes = await prisma.note.count({
+      where: { userId }
+    })
+    console.log('Similar search: User has', totalNotes, 'total notes')
+
+    // Split query into words for more flexible matching
+    const queryWords = query.toLowerCase()
+      .split(/\s+/)
+      .filter(word => word.length > 2) // Only use words longer than 2 characters
+      .slice(0, 10) // Limit to first 10 words to avoid too complex queries
+
+    console.log('Similar search: Query words:', queryWords)
+
+    if (queryWords.length === 0) {
+      console.log('Similar search: No valid query words found')
       return NextResponse.json({
         results: [],
         query,
-        tokensUsed: 0
-      })
-    }
-
-    // First check if vector extension is available
-    try {
-      await prisma.$queryRaw`SELECT 1`
-      
-      // Try a simple vector query to test if pgvector is installed
-      await prisma.$queryRaw`SELECT '[1,2,3]'::vector`
-    } catch (testError) {
-      console.log('pgvector not available, falling back to text search')
-      
-      // Fallback to text-based search
-      const textSearchResults = await prisma.note.findMany({
-        where: {
-          userId,
-          AND: noteId ? [{ id: { not: noteId } }] : [],
-          OR: [
-            { title: { contains: query, mode: 'insensitive' } },
-            { content: { contains: query, mode: 'insensitive' } },
-            { summary: { contains: query, mode: 'insensitive' } }
-          ]
-        },
-        select: {
-          id: true,
-          title: true,
-          content: true,
-          createdAt: true,
-          summary: true
-        },
-        orderBy: { updatedAt: 'desc' },
-        take: limit
-      })
-
-      const formattedResults: SimilarNote[] = textSearchResults.map(note => ({
-        id: note.id,
-        title: note.title,
-        content: note.content.substring(0, 150) + (note.content.length > 150 ? '...' : ''),
-        similarity: 0.5, // Default similarity for text search
-        createdAt: note.createdAt.toISOString(),
-        summary: note.summary || undefined
-      }))
-
-      return NextResponse.json({
-        results: formattedResults,
-        query,
         tokensUsed: 0,
-        fallbackMode: 'text_search'
+        fallback: 'text-search',
+        debug: 'No valid query words'
       })
     }
 
-    // Generate embedding for the search query
-    const queryEmbedding = await generateEmbedding(query)
+    // Build flexible search conditions
+    const searchConditions = queryWords.map(word => ({
+      OR: [
+        { title: { contains: word, mode: 'insensitive' as const } },
+        { content: { contains: word, mode: 'insensitive' as const } }
+      ]
+    }))
 
-    // Build SQL query for vector similarity search with optimized performance
-    let similarNotes
-    
-    if (noteId) {
-      // Query excluding a specific note
-      similarNotes = await prisma.$queryRaw`
-        SELECT 
-          id,
-          title,
-          content,
-          "createdAt",
-          summary,
-          (1 - (embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector)) as similarity
-        FROM "notes"
-        WHERE 
-          "userId" = ${userId}
-          AND "hasEmbedding" = true
-          AND embedding IS NOT NULL
-          AND id != ${noteId}
-          AND (1 - (embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector)) > 0.25
-        ORDER BY embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector
-        LIMIT ${limit}
-      ` as Array<{
-        id: string
-        title: string
-        content: string
-        createdAt: Date
-        summary: string | null
-        similarity: number
-      }>
-    } else {
-      // Query without excluding any note
-      similarNotes = await prisma.$queryRaw`
-        SELECT 
-          id,
-          title,
-          content,
-          "createdAt",
-          summary,
-          (1 - (embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector)) as similarity
-        FROM "notes"
-        WHERE 
-          "userId" = ${userId}
-          AND "hasEmbedding" = true
-          AND embedding IS NOT NULL
-          AND (1 - (embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector)) > 0.25
-        ORDER BY embedding <=> ${JSON.stringify(queryEmbedding.embedding)}::vector
-        LIMIT ${limit}
-      ` as Array<{
-        id: string
-        title: string
-        content: string
-        createdAt: Date
-        summary: string | null
-        similarity: number
-      }>
-    }
+    console.log('Similar search: Search conditions:', JSON.stringify(searchConditions, null, 2))
 
-    // Format results with faster processing
-    const formattedResults: SimilarNote[] = similarNotes.map(note => ({
+    const textSearchResults = await prisma.note.findMany({
+      where: {
+        userId,
+        OR: searchConditions,
+        ...(noteId && { id: { not: noteId } })
+      },
+      take: limit * 2, // Get more results to filter and rank
+      orderBy: { updatedAt: 'desc' }
+    })
+
+    console.log('Similar search: Found', textSearchResults.length, 'raw results')
+
+    // Calculate simple similarity score based on word matches
+    const scoredResults = textSearchResults.map(note => {
+      const noteText = (note.title + ' ' + note.content).toLowerCase()
+      const matchedWords = queryWords.filter(word => noteText.includes(word))
+      const similarity = matchedWords.length / queryWords.length
+      
+      return {
+        ...note,
+        similarity,
+        matchedWords
+      }
+    })
+
+    // Sort by similarity and take top results
+    const sortedResults = scoredResults
+      .filter(result => result.similarity > 0.1) // Only include results with at least 10% word match
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, limit)
+
+    console.log('Similar search: Scored results:', sortedResults.map(r => ({
+      id: r.id,
+      title: r.title.substring(0, 50),
+      similarity: r.similarity,
+      matchedWords: r.matchedWords
+    })))
+
+    const formattedResults: SimilarNote[] = sortedResults.map(note => ({
       id: note.id,
       title: note.title,
-      content: note.content.substring(0, 150) + (note.content.length > 150 ? '...' : ''), // Reduced from 200 to 150
-      similarity: Math.round(note.similarity * 100) / 100,
+      content: note.content.substring(0, 150) + (note.content.length > 150 ? '...' : ''),
+      similarity: note.similarity,
       createdAt: note.createdAt.toISOString(),
       summary: note.summary || undefined
     }))
 
-    console.log(`Found ${formattedResults.length} similar notes`)
+    console.log('Similar search: Returning', formattedResults.length, 'formatted results')
 
     return NextResponse.json({
       results: formattedResults,
       query,
-      tokensUsed: queryEmbedding.tokensUsed
+      tokensUsed: 0,
+      fallback: 'text-search',
+      debug: {
+        totalNotes,
+        queryWords,
+        rawResults: textSearchResults.length,
+        scoredResults: sortedResults.length
+      }
     })
 
   } catch (error) {
-    console.error('Error in semantic search:', error)
+    console.error('Error in text search:', error)
     
-    if (error instanceof Error) {
-      if (error.message.includes('OPENAI_API_KEY')) {
-        return NextResponse.json({ 
-          error: 'AI service is not configured. Please contact support.' 
-        }, { status: 503 })
-      }
-      
-      if (error.message.includes('vector') || error.message.includes('operator does not exist')) {
-        return NextResponse.json({ 
-          error: 'Vector database not properly configured. Please contact support.' 
-        }, { status: 503 })
-      }
-    }
-
     return NextResponse.json({ 
-      error: 'Failed to perform semantic search',
+      error: 'Failed to perform search',
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
-} 
+}
+
+// Export handler with authentication middleware and input validation
+export const POST = withAuth(
+  async (request: AuthenticatedRequest) => {
+    let body: any = null
+    
+    try {
+      body = await request.json()
+      console.log('Similar search: Received body:', body)
+      
+      const validatedData = similarSearchSchema.parse(body)
+      console.log('Similar search: Validated data:', validatedData)
+      
+      return await similarSearchHandler(request, validatedData)
+    } catch (error) {
+      console.error('Similar search validation error:', error)
+      
+      if (error instanceof Error && error.name === 'ZodError') {
+        // Handle Zod validation errors with detailed messages
+        const zodError = error as any
+        const errorDetails = zodError.errors.map((e: any) => `${e.path.join('.')}: ${e.message}`).join(', ')
+        
+        return NextResponse.json({
+          error: 'Invalid input',
+          details: errorDetails,
+          received: body
+        }, { status: 400 })
+      }
+      
+      return NextResponse.json({
+        error: 'Invalid input format',
+        details: error instanceof Error ? error.message : 'Unknown validation error',
+        received: body
+      }, { status: 400 })
+    }
+  }
+) 

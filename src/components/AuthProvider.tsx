@@ -7,14 +7,34 @@ import { auth } from '@/lib/firebase'
 interface AuthContextType {
   user: User | null
   loading: boolean
+  getAuthToken: () => Promise<string | null>
 }
 
-const AuthContext = createContext<AuthContextType>({ user: null, loading: true })
+const AuthContext = createContext<AuthContextType>({ 
+  user: null, 
+  loading: true,
+  getAuthToken: async () => null
+})
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [loading, setLoading] = useState(true)
   const syncedUsersRef = useRef<Set<string>>(new Set())
+
+  const getAuthToken = async (): Promise<string | null> => {
+    if (!user) {
+      console.warn('No authenticated user found')
+      return null
+    }
+
+    try {
+      const token = await user.getIdToken()
+      return token
+    } catch (error) {
+      console.error('Failed to get auth token:', error)
+      return null
+    }
+  }
 
   const syncUser = async (firebaseUser: User) => {
     // Prevent duplicate syncs for the same user
@@ -66,7 +86,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <AuthContext.Provider value={{ user, loading }}>
+    <AuthContext.Provider value={{ user, loading, getAuthToken }}>
       {children}
     </AuthContext.Provider>
   )

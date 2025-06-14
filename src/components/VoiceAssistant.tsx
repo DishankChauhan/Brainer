@@ -1,9 +1,10 @@
 'use client'
 
-import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { MessageCircle, Mic, MicOff, Volume2, VolumeX, Loader2, Brain } from 'lucide-react'
+import React, { useState, useRef, useEffect } from 'react'
+import { Brain, Mic, MicOff, Volume2, VolumeX, MessageCircle } from 'lucide-react'
+import { useAuth } from '@/components/AuthProvider'
 
-// Add type declarations for Speech API
+// Global declarations for Speech API
 declare global {
   interface Window {
     SpeechRecognition: any
@@ -32,226 +33,777 @@ interface Message {
   type: 'user' | 'assistant'
   text: string
   timestamp: Date
-  foundNotes?: string[]
 }
 
-export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSummary, userId, isFirstTime, className = '' }: VoiceAssistantProps) {
+export function VoiceAssistant({ 
+  notes, 
+  onNoteSelect, 
+  onCreateNote, 
+  onGenerateSummary, 
+  userId, 
+  isFirstTime, 
+  className = '' 
+}: VoiceAssistantProps) {
+  const { getAuthToken } = useAuth()
+  
+  // States
   const [isOpen, setIsOpen] = useState(false)
+  const [messages, setMessages] = useState<Message[]>([])
   const [isListening, setIsListening] = useState(false)
   const [isSpeaking, setIsSpeaking] = useState(false)
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [messages, setMessages] = useState<Message[]>([])
-  const [hasPermission, setHasPermission] = useState<boolean | null>(null)
   const [speechEnabled, setSpeechEnabled] = useState(true)
-  const [speechError, setSpeechError] = useState<string | null>(null)
-  const [isRetrying, setIsRetrying] = useState(false)
+  const [isProcessing, setIsProcessing] = useState(false)
   const [currentLanguage, setCurrentLanguage] = useState<'english' | 'hindi'>('english')
-  const [pendingSummaryNoteId, setPendingSummaryNoteId] = useState<string | null>(null)
+  const [isWakeWordListening, setIsWakeWordListening] = useState(false)
+  const [isStartingWakeWord, setIsStartingWakeWord] = useState(false)
+  const [voicesLoaded, setVoicesLoaded] = useState(false)
+  const [hasUserInteracted, setHasUserInteracted] = useState(false)
 
+  // Refs
   const recognitionRef = useRef<any>(null)
-  const synthRef = useRef<SpeechSynthesis | null>(null)
+  const wakeWordRecognitionRef = useRef<any>(null)
+  const bestVoiceRef = useRef<SpeechSynthesisVoice | null>(null)
+  const wakeWordTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const currentUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null)
 
-  useEffect(() => {
-    // Check if we're running on HTTPS or localhost (required for speech recognition)
-    const isSecureContext = window.isSecureContext || window.location.hostname === 'localhost'
+  // Clean text for speech (remove punctuation that sounds bad)
+  const cleanTextForSpeech = (text: string): string => {
+    return text
+      .replace(/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/g, ' ') // Remove special characters
+      .replace(/\s+/g, ' ') // Replace multiple spaces with single space
+      .replace(/\b(um|uh|er|ah)\b/gi, '') // Remove filler words
+      .trim()
+  }
+
+  // Detect language from text
+  const detectLanguage = (text: string): 'english' | 'hindi' => {
+    const hindiPattern = /[\u0900-\u097F]/
+    const hindiWords = ['नमस्ते', 'हैलो', 'नोट', 'बनाओ', 'खोजो', 'मदद', 'कैसे', 'क्या', 'हाँ', 'नहीं', 'ठीक', 'धन्यवाद', 'आप', 'मैं', 'हूँ', 'है', 'के', 'की', 'को', 'से', 'में', 'पर', 'और', 'या', 'भी', 'तो', 'यह', 'वह', 'इस', 'उस', 'कर', 'कि', 'जो', 'तक', 'अब', 'यदि', 'फिर', 'वाला', 'वाली', 'वाले']
     
-    // Initialize speech recognition
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-      recognitionRef.current = new SpeechRecognition()
+    console.log('🔍 Detecting language for text:', text)
+    
+    // Check for Devanagari script
+    if (hindiPattern.test(text)) {
+      console.log('🔍 Hindi detected by script')
+      return 'hindi'
+    }
+    
+    // Check for Hindi words
+    const lowerText = text.toLowerCase()
+    const foundHindiWords = hindiWords.filter(word => lowerText.includes(word))
+    if (foundHindiWords.length > 0) {
+      console.log('🔍 Hindi detected by words:', foundHindiWords)
+      return 'hindi'
+    }
+    
+    // Check for transliterated Hindi patterns
+    const transliteratedPatterns = [
+      /\b(namaste|namaskar|dhanyawad|theek|kaise|kya|haan|nahi|aap|main|hun|hai)\b/i,
+      /\b(note|banao|khojo|madad|help|create|find)\b/i
+    ]
+    
+    for (const pattern of transliteratedPatterns) {
+      if (pattern.test(text)) {
+        console.log('🔍 Hindi detected by transliteration pattern')
+        return 'hindi'
+      }
+    }
+    
+    console.log('🔍 English detected (default)')
+    return 'english'
+  }
+
+  // Find best voice for language
+  const findBestVoice = (language: 'english' | 'hindi'): SpeechSynthesisVoice | null => {
+    const voices = window.speechSynthesis.getVoices()
+    console.log(`🎵 Finding voice for ${language}, available voices:`, voices.length)
+    
+    if (language === 'hindi') {
+      // Look for Hindi voices with multiple patterns
+      const hindiVoices = voices.filter(voice => 
+        voice.lang.includes('hi') || 
+        voice.lang.includes('IN') ||
+        voice.name.toLowerCase().includes('hindi') ||
+        voice.name.toLowerCase().includes('india') ||
+        voice.lang === 'hi-IN'
+      )
       
-      if (recognitionRef.current) {
-        recognitionRef.current.continuous = false
-        recognitionRef.current.interimResults = false
+      console.log('🎵 Found Hindi voices:', hindiVoices.map(v => `${v.name} (${v.lang})`))
+      
+      if (hindiVoices.length > 0) {
+        // Prefer Google Hindi voice first (best quality)
+        const googleHindiVoice = hindiVoices.find(voice => 
+          voice.name.toLowerCase().includes('google') && voice.lang === 'hi-IN'
+        )
+        if (googleHindiVoice) {
+          console.log('🎵 Using Google Hindi voice:', googleHindiVoice.name)
+          return googleHindiVoice
+        }
         
-        // Update language setting when currentLanguage changes
-        recognitionRef.current.lang = currentLanguage === 'hindi' ? 'hi-IN' : 'en-US'
-
-        recognitionRef.current.onstart = () => {
-          setIsListening(true)
+        // Then prefer Lekha (native Hindi voice)
+        const lekhaVoice = hindiVoices.find(voice => 
+          voice.name.toLowerCase().includes('lekha')
+        )
+        if (lekhaVoice) {
+          console.log('🎵 Using Lekha Hindi voice:', lekhaVoice.name)
+          return lekhaVoice
         }
-
-        recognitionRef.current.onend = () => {
-          setIsListening(false)
+        
+        // Then prefer local voices
+        const localHindiVoice = hindiVoices.find(voice => voice.localService)
+        if (localHindiVoice) {
+          console.log('🎵 Using local Hindi voice:', localHindiVoice.name)
+          return localHindiVoice
         }
-
-        recognitionRef.current.onresult = (event: any) => {
-          const transcript = event.results[0]?.item(0)?.transcript
-          if (transcript) {
-            // Auto-detect language and update preference
-            const isHindiTranscript = /[\u0900-\u097F]/.test(transcript) ||
-                                     transcript.toLowerCase().includes('namaste') ||
-                                     transcript.toLowerCase().includes('नोट') ||
-                                     transcript.toLowerCase().includes('खोज') ||
-                                     transcript.toLowerCase().includes('बना') ||
-                                     transcript.toLowerCase().includes('मदद')
-            
-            if (isHindiTranscript && currentLanguage !== 'hindi') {
-              setCurrentLanguage('hindi')
-            } else if (!isHindiTranscript && currentLanguage !== 'english') {
-              setCurrentLanguage('english')
-            }
-            
-            handleUserMessage(transcript)
-          }
-        }
-
-        recognitionRef.current.onerror = (event: any) => {
-          console.error('Speech recognition error:', event.error)
-          setIsListening(false)
-          setIsRetrying(false)
-          
-          let errorMessage = ''
-          
-          switch (event.error) {
-            case 'network':
-              if (!isSecureContext) {
-                errorMessage = 'Speech recognition requires HTTPS. Please use the HTTPS development server or type your message instead.'
-              } else {
-                errorMessage = 'Network error: Speech recognition service unavailable. Please check your connection and try again.'
-              }
-              break
-            case 'not-allowed':
-              errorMessage = 'Microphone access denied. Please allow microphone access in your browser settings.'
-              setHasPermission(false)
-              break
-            case 'service-not-allowed':
-              errorMessage = 'Speech recognition service is not available. Please try typing your message instead.'
-              break
-            case 'no-speech':
-              errorMessage = 'No speech detected. Please speak louder or try again.'
-              break
-            case 'audio-capture':
-              errorMessage = 'Audio capture failed. Please check your microphone and try again.'
-              break
-            case 'language-not-supported':
-              errorMessage = 'Language not supported. Please check your browser language settings.'
-              break
-            default:
-              errorMessage = `Speech recognition error: ${event.error}. Please try typing your message instead.`
-          }
-          
-          setSpeechError(errorMessage)
-          
-          // Clear error after 8 seconds for longer messages
-          setTimeout(() => {
-            setSpeechError(null)
-          }, 8000)
+        
+        console.log('🎵 Using first Hindi voice:', hindiVoices[0].name)
+        return hindiVoices[0]
+      }
+      
+      // Fallback: Use any Indian English voice for Hindi text
+      const indianEnglishVoices = voices.filter(voice => 
+        voice.lang.includes('IN') && voice.lang.includes('en')
+      )
+      
+      if (indianEnglishVoices.length > 0) {
+        console.log('🎵 Using Indian English voice for Hindi:', indianEnglishVoices[0].name)
+        return indianEnglishVoices[0]
+      }
+      
+      // Final fallback: Use any voice that might work with Hindi
+      const fallbackVoices = voices.filter(voice => 
+        voice.lang.includes('en') || voice.name.toLowerCase().includes('google')
+      )
+      
+      if (fallbackVoices.length > 0) {
+        console.log('🎵 Using fallback voice for Hindi:', fallbackVoices[0].name)
+        return fallbackVoices[0]
+      }
+      
+      console.log('🎵 No suitable voice found for Hindi, using default')
+      return voices[0] || null
+    } else {
+      // Look for natural English voices (prefer female voices as they sound more natural)
+      const preferredVoices = [
+        'Samantha', 'Victoria', 'Allison', 'Ava', 'Susan', 'Veena', 'Fiona',
+        'Google UK English Female', 'Microsoft Zira', 'Alex'
+      ]
+      
+      for (const preferred of preferredVoices) {
+        const voice = voices.find(v => v.name.includes(preferred))
+        if (voice) {
+          console.log('🎵 Using preferred English voice:', voice.name)
+          return voice
         }
       }
-    } else {
-      // Speech recognition not supported
-      setSpeechError('Speech recognition is not supported in this browser. Please use Chrome or Edge and type your messages.')
+      
+      // Fallback to any English voice
+      const englishVoices = voices.filter(voice => 
+        voice.lang.includes('en') && 
+        (voice.lang.includes('US') || voice.lang.includes('GB'))
+      )
+      
+      if (englishVoices.length > 0) {
+        console.log('🎵 Using fallback English voice:', englishVoices[0].name)
+        return englishVoices[0]
+      }
+      
+      console.log('🎵 Using default voice (first available)')
+      return voices[0] || null
+    }
+  }
+
+  // Detect user interaction for speech synthesis
+  useEffect(() => {
+    const handleUserInteraction = () => {
+      console.log('👆 User interaction detected')
+      setHasUserInteracted(true)
+      
+      // Test speech synthesis capability
+      if ('speechSynthesis' in window && !hasUserInteracted) {
+        console.log('🔊 Testing speech synthesis capability...')
+        const testUtterance = new SpeechSynthesisUtterance('')
+        window.speechSynthesis.speak(testUtterance)
+        window.speechSynthesis.cancel()
+      }
     }
 
-    // Initialize speech synthesis
-    if ('speechSynthesis' in window) {
-      synthRef.current = window.speechSynthesis
-    }
+    // Listen for various user interaction events
+    const events = ['click', 'touchstart', 'keydown', 'mousedown']
+    events.forEach(event => {
+      document.addEventListener(event, handleUserInteraction, { once: true })
+    })
 
     return () => {
-      if (recognitionRef.current) {
-        recognitionRef.current.stop()
-      }
-      if (synthRef.current) {
-        synthRef.current.cancel()
-      }
+      events.forEach(event => {
+        document.removeEventListener(event, handleUserInteraction)
+      })
     }
-  }, [currentLanguage])
+  }, [hasUserInteracted])
 
-  // Separate effect to update speech recognition language when currentLanguage changes
+  // Load voices and ensure they're available
   useEffect(() => {
-    if (recognitionRef.current) {
-      recognitionRef.current.lang = currentLanguage === 'hindi' ? 'hi-IN' : 'en-US'
-    }
-  }, [currentLanguage])
+    if ('speechSynthesis' in window) {
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices()
+        console.log('🎵 Voices loading check:', voices.length)
+        
+        if (voices.length > 0) {
+          setVoicesLoaded(true)
+          console.log('🎵 All available voices:')
+          voices.forEach((voice, index) => {
+            console.log(`  ${index}: ${voice.name} (${voice.lang}) - Local: ${voice.localService}`)
+          })
+        } else {
+          console.log('🎵 No voices loaded yet, will retry...')
+        }
+      }
 
-  const checkMicrophonePermission = async () => {
-    try {
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-      setHasPermission(true)
-    } catch (error) {
-      setHasPermission(false)
-    }
-  }
+      // Load voices immediately
+      loadVoices()
+      
+      // Listen for voices changed event
+      window.speechSynthesis.addEventListener('voiceschanged', loadVoices)
+      
+      // Multiple fallback attempts with increasing delays
+      const retryDelays = [500, 1000, 2000, 3000]
+      retryDelays.forEach((delay, index) => {
+        setTimeout(() => {
+          if (!voicesLoaded) {
+            console.log(`🎵 Retry ${index + 1}: Force loading voices after ${delay}ms`)
+            loadVoices()
+          }
+        }, delay)
+      })
 
-  const startListening = async () => {
-    if (!hasPermission) {
-      await checkMicrophonePermission()
-    }
-
-    if (recognitionRef.current && hasPermission !== false) {
-      try {
-        setSpeechError(null) // Clear any previous errors
-        setIsRetrying(false)
-        recognitionRef.current.start()
-      } catch (error) {
-        console.error('Failed to start speech recognition:', error)
-        setSpeechError('Failed to start speech recognition. Please try again or type your message.')
+      return () => {
+        window.speechSynthesis.removeEventListener('voiceschanged', loadVoices)
       }
     }
+  }, [voicesLoaded])
+
+  // Enhanced speech function with human-like qualities
+  const speak = (text: string, language?: 'english' | 'hindi') => {
+    console.log('🔊 Speak function called:', { 
+      text: text.substring(0, 50) + '...', 
+      language, 
+      speechEnabled, 
+      hasUserInteracted, 
+      isSpeaking
+    })
+
+    if (!speechEnabled || !('speechSynthesis' in window) || !text.trim()) {
+      console.log('🔊 Speech skipped - basic checks failed')
+      return
+    }
+
+    if (!hasUserInteracted) {
+      console.log('🔊 Speech skipped - no user interaction yet')
+      return
+    }
+
+    // If already speaking, just return (don't queue or cancel)
+    if (isSpeaking) {
+      console.log('🔊 Already speaking, skipping this request')
+      return
+    }
+
+    // Clean text for better speech
+    const cleanText = cleanTextForSpeech(text)
+    if (!cleanText) {
+      console.log('🔊 No clean text to speak')
+      return
+    }
+
+    const targetLang = language || currentLanguage
+    console.log(`🔊 Speaking in ${targetLang}:`, cleanText.substring(0, 50) + '...')
+    
+    // Set speaking state immediately to prevent conflicts
+    setIsSpeaking(true)
+
+    // Create utterance
+    const utterance = new SpeechSynthesisUtterance(cleanText)
+    currentUtteranceRef.current = utterance
+    
+    // Use best voice for language
+    const bestVoice = findBestVoice(targetLang)
+    if (bestVoice) {
+      utterance.voice = bestVoice
+      console.log('🔊 Using voice:', bestVoice.name, bestVoice.lang)
+    } else {
+      console.log('🔊 No specific voice found, using default')
+    }
+    
+    // Human-like speech settings
+    if (targetLang === 'hindi') {
+      utterance.lang = 'hi-IN'
+      utterance.rate = 0.8  // Slower for Hindi
+      utterance.pitch = 1.0 // Normal pitch
+      utterance.volume = 1.0 // Full volume
+      console.log('🔊 Hindi speech settings applied')
+    } else {
+      utterance.lang = 'en-US'
+      utterance.rate = 0.95
+      utterance.pitch = 1.0
+      utterance.volume = 0.9
+      console.log('🔊 English speech settings applied')
+    }
+
+    utterance.onstart = () => {
+      console.log('🔊 Speech started successfully')
+      setIsSpeaking(true)
+    }
+    
+    utterance.onend = () => {
+      console.log('🔊 Speech ended successfully')
+      setIsSpeaking(false)
+      currentUtteranceRef.current = null
+      
+      // Restart wake word listening after speaking
+      setTimeout(() => {
+        if (!isListening && isOpen) {
+          startWakeWordListening()
+        }
+      }, 500)
+    }
+    
+    utterance.onerror = (event) => {
+      console.error('🔊 Speech error:', event.error)
+      setIsSpeaking(false)
+      currentUtteranceRef.current = null
+      
+      // Only try fallback for specific errors and Hindi language
+      if (targetLang === 'hindi' && (event.error === 'synthesis-failed' || event.error === 'voice-unavailable')) {
+        console.log('🔊 Trying Hindi with English voice fallback...')
+        setTimeout(() => {
+          // Simple fallback - use English voice with Hindi text
+          const fallbackUtterance = new SpeechSynthesisUtterance(cleanText)
+          fallbackUtterance.lang = 'en-US'
+          fallbackUtterance.rate = 0.8
+          fallbackUtterance.volume = 1.0
+          
+          fallbackUtterance.onstart = () => {
+            console.log('🔊 Hindi fallback started')
+            setIsSpeaking(true)
+          }
+          
+          fallbackUtterance.onend = () => {
+            console.log('🔊 Hindi fallback ended')
+            setIsSpeaking(false)
+            setTimeout(() => {
+              if (!isListening && isOpen) {
+                startWakeWordListening()
+              }
+            }, 500)
+          }
+          
+          fallbackUtterance.onerror = () => {
+            console.log('🔊 Hindi fallback also failed')
+            setIsSpeaking(false)
+          }
+          
+          window.speechSynthesis.speak(fallbackUtterance)
+        }, 500)
+      } else {
+        // For other cases, just restart wake word listening
+        setTimeout(() => {
+          if (!isListening && isOpen) {
+            startWakeWordListening()
+          }
+        }, 500)
+      }
+    }
+
+    console.log('🔊 Starting speech synthesis')
+    try {
+      window.speechSynthesis.speak(utterance)
+    } catch (error) {
+      console.error('🔊 Error calling speechSynthesis.speak():', error)
+      setIsSpeaking(false)
+      currentUtteranceRef.current = null
+    }
   }
 
-  const retryListening = async () => {
-    setIsRetrying(true)
-    setSpeechError(null)
+  // Initialize speech recognition for commands
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      
+      try {
+        recognitionRef.current = new SpeechRecognition()
+        
+        if (recognitionRef.current) {
+          recognitionRef.current.continuous = false
+          recognitionRef.current.interimResults = false
+          // Always start with Hindi recognition to catch Hindi speech
+          recognitionRef.current.lang = 'hi-IN'
+
+          recognitionRef.current.onstart = () => {
+            console.log('🎤 Regular recognition started with lang:', recognitionRef.current.lang)
+            setIsListening(true)
+          }
+          
+          recognitionRef.current.onend = () => {
+            console.log('🎤 Regular recognition ended')
+            setIsListening(false)
+          }
+          
+          recognitionRef.current.onresult = (event: any) => {
+            try {
+              const transcript = event.results[0]?.item(0)?.transcript
+              console.log('🎤 Speech recognition result:', transcript)
+              
+              if (transcript) {
+                const detectedLang = detectLanguage(transcript)
+                console.log('🎤 Detected language:', detectedLang)
+                setCurrentLanguage(detectedLang)
+                
+                // If we detected English but were listening in Hindi, try again with English
+                if (detectedLang === 'english' && recognitionRef.current.lang === 'hi-IN') {
+                  console.log('🎤 Switching to English recognition and retrying...')
+                  recognitionRef.current.lang = 'en-US'
+                  setTimeout(() => {
+                    if (!isListening) {
+                      startListening()
+                    }
+                  }, 500)
+                  return
+                }
+                
+                handleUserMessage(transcript)
+              }
+            } catch (error) {
+              console.error('🎤 Error processing speech result:', error)
+            }
+          }
+
+          recognitionRef.current.onerror = (event: any) => {
+            console.log('🎤 Speech recognition error:', event.error)
+            setIsListening(false)
+            
+            // Handle specific errors without throwing
+            try {
+              if (event.error === 'aborted') {
+                console.log('🎤 Recognition was aborted, this is normal')
+              } else if (event.error === 'not-allowed') {
+                console.error('🎤 Microphone permission denied')
+              } else if (event.error === 'no-speech') {
+                console.log('🎤 No speech detected, trying other language...')
+                // Switch language and retry
+                const newLang = recognitionRef.current.lang === 'hi-IN' ? 'en-US' : 'hi-IN'
+                recognitionRef.current.lang = newLang
+                console.log('🎤 Switched to language:', newLang)
+                setTimeout(() => {
+                  if (!isListening && !isWakeWordListening && isOpen) {
+                    startListening()
+                  }
+                }, 1000)
+              } else if (event.error === 'network') {
+                console.log('🎤 Network error in speech recognition')
+              } else {
+                console.log('🎤 Other speech recognition error:', event.error)
+                // Restart wake word listening for other errors
+                setTimeout(() => {
+                  if (!isListening && !isWakeWordListening && isOpen) {
+                    startWakeWordListening()
+                  }
+                }, 1000)
+              }
+            } catch (errorHandlingError) {
+              console.error('🎤 Error in error handling:', errorHandlingError)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('🎤 Failed to initialize speech recognition:', error)
+      }
+    } else {
+      console.log('🎤 Speech recognition not supported')
+    }
+  }, [isOpen])
+
+  // Initialize wake word recognition
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
+      
+      try {
+        wakeWordRecognitionRef.current = new SpeechRecognition()
+        
+        if (wakeWordRecognitionRef.current) {
+          wakeWordRecognitionRef.current.continuous = true
+          wakeWordRecognitionRef.current.interimResults = true
+          // Use Hindi recognition for wake word to catch both languages
+          wakeWordRecognitionRef.current.lang = 'hi-IN'
+
+          wakeWordRecognitionRef.current.onstart = () => {
+            console.log('🔊 Wake word recognition started with lang:', wakeWordRecognitionRef.current.lang)
+            setIsStartingWakeWord(false)
+            setIsWakeWordListening(true)
+          }
+          
+          wakeWordRecognitionRef.current.onend = () => {
+            console.log('🔊 Wake word recognition ended')
+            setIsStartingWakeWord(false)
+            setIsWakeWordListening(false)
+            
+            // Schedule restart instead of immediate restart
+            scheduleWakeWordRestart(1000)
+          }
+          
+          wakeWordRecognitionRef.current.onresult = (event: any) => {
+            try {
+              const transcript = event.results[event.results.length - 1]?.item(0)?.transcript?.toLowerCase()
+              console.log('🔊 Wake word transcript:', transcript)
+              
+              if (transcript && (
+                transcript.includes('hey brainer') || 
+                transcript.includes('hi brainer') ||
+                transcript.includes('hello brainer') ||
+                transcript.includes('हे ब्रेनर') ||
+                transcript.includes('हैलो ब्रेनर') ||
+                transcript.includes('नमस्ते ब्रेनर') ||
+                (transcript.includes('brainer') && transcript.length < 15) ||
+                (transcript.includes('ब्रेनर') && transcript.length < 15)
+              )) {
+                console.log('🔊 Wake word detected:', transcript)
+                handleWakeWordDetected()
+              }
+            } catch (error) {
+              console.error('🔊 Error processing wake word result:', error)
+            }
+          }
+
+          wakeWordRecognitionRef.current.onerror = (event: any) => {
+            console.log('🔊 Wake word recognition error:', event.error)
+            setIsStartingWakeWord(false)
+            setIsWakeWordListening(false)
+            
+            // Handle specific errors without throwing
+            try {
+              if (event.error === 'aborted') {
+                console.log('🔊 Wake word recognition was aborted, this is normal')
+              } else if (event.error === 'not-allowed') {
+                console.error('🔊 Microphone permission denied for wake word')
+              } else if (event.error === 'no-speech') {
+                console.log('🔊 No speech detected for wake word')
+              } else if (event.error === 'network') {
+                console.log('🔊 Network error in wake word recognition')
+              } else {
+                console.log('🔊 Other wake word recognition error:', event.error)
+                // Schedule restart for other errors
+                scheduleWakeWordRestart(3000)
+              }
+            } catch (errorHandlingError) {
+              console.error('🔊 Error in wake word error handling:', errorHandlingError)
+            }
+          }
+        }
+      } catch (error) {
+        console.error('🔊 Failed to initialize wake word recognition:', error)
+      }
+    }
+  }, [isOpen, isListening])
+
+  // Start wake word listening when assistant opens
+  useEffect(() => {
+    if (isOpen && !isWakeWordListening && !isListening && !isStartingWakeWord) {
+      // Delay initial start to avoid conflicts
+      scheduleWakeWordRestart(500)
+    } else if (!isOpen) {
+      stopWakeWordListening()
+    }
+  }, [isOpen])
+
+  // Stop wake word when regular listening starts
+  useEffect(() => {
+    if (isListening && isWakeWordListening) {
+      stopWakeWordListening()
+    }
+  }, [isListening])
+
+  const startWakeWordListening = () => {
+    // Clear any existing timeout
+    if (wakeWordTimeoutRef.current) {
+      clearTimeout(wakeWordTimeoutRef.current)
+      wakeWordTimeoutRef.current = null
+    }
+
+    // Prevent multiple simultaneous starts
+    if (isStartingWakeWord || isWakeWordListening || isListening) {
+      console.log('Wake word start prevented - already active or starting')
+      return
+    }
+
+    if (!wakeWordRecognitionRef.current) {
+      console.log('Wake word recognition not initialized')
+      return
+    }
+
+    console.log('Starting wake word listening...')
+    setIsStartingWakeWord(true)
+
+    try {
+      wakeWordRecognitionRef.current.start()
+    } catch (error) {
+      console.error('Failed to start wake word recognition:', error)
+      setIsStartingWakeWord(false)
+      setIsWakeWordListening(false)
+    }
+  }
+
+  const stopWakeWordListening = () => {
+    // Clear any pending restart timeout
+    if (wakeWordTimeoutRef.current) {
+      clearTimeout(wakeWordTimeoutRef.current)
+      wakeWordTimeoutRef.current = null
+    }
+
+    setIsStartingWakeWord(false)
+
+    if (wakeWordRecognitionRef.current && isWakeWordListening) {
+      console.log('Stopping wake word listening...')
+      try {
+        wakeWordRecognitionRef.current.stop()
+      } catch (error) {
+        console.error('Failed to stop wake word recognition:', error)
+      }
+    }
+    setIsWakeWordListening(false)
+  }
+
+  const scheduleWakeWordRestart = (delay: number = 2000) => {
+    // Clear any existing timeout
+    if (wakeWordTimeoutRef.current) {
+      clearTimeout(wakeWordTimeoutRef.current)
+    }
+
+    // Only schedule restart if assistant is open and not doing regular listening
+    if (isOpen && !isListening && !isWakeWordListening && !isStartingWakeWord) {
+      console.log(`Scheduling wake word restart in ${delay}ms`)
+      wakeWordTimeoutRef.current = setTimeout(() => {
+        if (isOpen && !isListening && !isWakeWordListening && !isStartingWakeWord) {
+          startWakeWordListening()
+        }
+      }, delay)
+    }
+  }
+
+  const handleWakeWordDetected = () => {
+    stopWakeWordListening()
     
-    // Wait a moment before retrying
-    setTimeout(async () => {
-      await startListening()
-    }, 1000)
+    const responses = [
+      { en: "Yes, how can I help you?", hi: "हाँ, मैं आपकी कैसे मदद कर सकता हूँ?" },
+      { en: "I'm listening, what do you need?", hi: "मैं सुन रहा हूँ, आपको क्या चाहिए?" },
+      { en: "Hi there, what can I do for you?", hi: "नमस्ते, मैं आपके लिए क्या कर सकता हूँ?" }
+    ]
+    
+    const response = responses[Math.floor(Math.random() * responses.length)]
+    const responseText = currentLanguage === 'hindi' ? response.hi : response.en
+    
+    const wakeWordMessage: Message = {
+      id: Date.now().toString(),
+      type: 'assistant',
+      text: responseText,
+      timestamp: new Date()
+    }
+    setMessages(prev => [...prev, wakeWordMessage])
+    
+    speak(responseText, currentLanguage)
+    
+    setTimeout(() => {
+      if (!isSpeaking) {
+        startListening()
+      }
+    }, 1500)
+  }
+
+  // First-time welcome
+  useEffect(() => {
+    if (isFirstTime && userId) {
+      setTimeout(() => {
+        setIsOpen(true)
+        const welcomeText = "Hello! I'm Brainer, your intelligent note-taking assistant. I can help you create, organize, and find your notes using voice commands. I understand both English and Hindi. How can I assist you today?"
+        
+        const welcomeMessage: Message = {
+          id: Date.now().toString(),
+          type: 'assistant',
+          text: welcomeText,
+          timestamp: new Date()
+        }
+        setMessages([welcomeMessage])
+        
+        setTimeout(() => speak(welcomeText, 'english'), 1000)
+      }, 1000)
+    }
+  }, [isFirstTime, userId])
+
+  const startListening = () => {
+    console.log('🎤 startListening called')
+    
+    // Record user interaction
+    setHasUserInteracted(true)
+    
+    if (!recognitionRef.current) {
+      console.log('🎤 No recognition ref available')
+      return
+    }
+
+    if (isListening || isStartingWakeWord) {
+      console.log('🎤 Already listening or starting wake word')
+      return
+    }
+
+    console.log('🎤 Stopping wake word and starting regular recognition')
+    
+    // Stop wake word listening first
+    stopWakeWordListening()
+    
+    // Set recognition language based on current language
+    const targetLang = currentLanguage === 'hindi' ? 'hi-IN' : 'en-US'
+    recognitionRef.current.lang = targetLang
+    console.log('🎤 Setting recognition language to:', targetLang)
+    
+    // Wait a moment before starting regular recognition
+    setTimeout(() => {
+      if (recognitionRef.current && !isListening) {
+        try {
+          console.log('🎤 Starting speech recognition with lang:', recognitionRef.current.lang)
+          recognitionRef.current.start()
+        } catch (error) {
+          console.error('🎤 Failed to start speech recognition:', error)
+          setIsListening(false)
+          // Schedule wake word restart if regular recognition fails
+          scheduleWakeWordRestart(1000)
+        }
+      }
+    }, 200)
   }
 
   const stopListening = () => {
-    if (recognitionRef.current) {
-      recognitionRef.current.stop()
-    }
-  }
-
-  const speak = useCallback((text: string, language?: 'english' | 'hindi') => {
-    if (!speechEnabled || !synthRef.current) return
-
-    // Cancel any ongoing speech
-    synthRef.current.cancel()
-
-    const utterance = new SpeechSynthesisUtterance(text)
+    console.log('🎤 stopListening called')
     
-    // Set language-specific voice settings
-    if (language === 'hindi' || currentLanguage === 'hindi') {
-      utterance.lang = 'hi-IN' // Hindi India
-      utterance.rate = 0.8
-    } else {
-      utterance.lang = 'en-US' // English US
-      utterance.rate = 0.9
+    if (recognitionRef.current && isListening) {
+      try {
+        console.log('🎤 Stopping speech recognition')
+        recognitionRef.current.stop()
+      } catch (error) {
+        console.error('🎤 Failed to stop speech recognition:', error)
+      }
+      setIsListening(false)
     }
     
-    utterance.pitch = 1
-    utterance.volume = 0.8
-    
-    utterance.onstart = () => setIsSpeaking(true)
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => setIsSpeaking(false)
-
-    // Try to find a voice that supports the language
-    const voices = synthRef.current.getVoices()
-    const targetLang = language === 'hindi' || currentLanguage === 'hindi' ? 'hi' : 'en'
-    const matchingVoice = voices.find(voice => voice.lang.startsWith(targetLang))
-    
-    if (matchingVoice) {
-      utterance.voice = matchingVoice
-    }
-
-    synthRef.current.speak(utterance)
-  }, [speechEnabled, currentLanguage])
-
-  const stopSpeaking = () => {
-    if (synthRef.current) {
-      synthRef.current.cancel()
-      setIsSpeaking(false)
-    }
+    // Schedule wake word restart after stopping regular listening
+    scheduleWakeWordRestart(1000)
   }
 
   const handleUserMessage = async (text: string) => {
+    // Record user interaction
+    setHasUserInteracted(true)
+    
+    const detectedLang = detectLanguage(text)
+    setCurrentLanguage(detectedLang)
+
     const userMessage: Message = {
       id: Date.now().toString(),
       type: 'user',
@@ -263,64 +815,57 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
     setIsProcessing(true)
 
     try {
-      // Detect Hindi in user input
-      const isHindiInput = /[\u0900-\u097F]/.test(text) || 
-                          text.toLowerCase().includes('namaste') ||
-                          text.toLowerCase().includes('hindi') ||
-                          text.toLowerCase().includes('हिंदी')
-
-      if (isHindiInput && currentLanguage !== 'hindi') {
-        setCurrentLanguage('hindi')
+      const token = await getAuthToken()
+      if (!token) {
+        throw new Error('Authentication required')
       }
 
-      // Process the user's query with AI
       const response = await fetch('/api/voice-assistant', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
           query: text,
           notes: notes,
-          userId: userId
+          userId: userId,
+          language: detectedLang,
+          context: 'Brainer is an intelligent note-taking app. Respond naturally and conversationally. Be helpful and specific about note management features.'
         }),
       })
 
       if (!response.ok) throw new Error('Failed to process query')
 
       const result = await response.json()
-      console.log('AI Response:', result) // Debug log
 
-      // Update current language based on AI response
-      if (result.language) {
-        setCurrentLanguage(result.language)
-      }
-
-      // Create assistant message with the natural language response
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'assistant',
-        text: result.response || "I'm here to help you!",
-        timestamp: new Date(),
-        foundNotes: result.foundNotes || []
+        text: result.response || "I'm here to help with your notes!",
+        timestamp: new Date()
       }
 
       setMessages(prev => [...prev, assistantMessage])
 
-      // Handle different actions
+      // Speak response in detected language
+      if (speechEnabled && result.response) {
+        const responseLang = result.language || detectedLang
+        setTimeout(() => speak(result.response, responseLang), 200)
+      }
+
+      // Handle note creation
       if (result.action === 'create_note' && result.noteData && onCreateNote) {
         try {
-          console.log('Creating note:', result.noteData)
-          const newNote = await onCreateNote(
+          await onCreateNote(
             result.noteData.title || 'New Note',
             result.noteData.content || '',
             result.noteData.tags || []
           )
           
-          // Show success message in appropriate language
-          const successText = result.language === 'hindi' || currentLanguage === 'hindi'
-            ? `✅ बहुत बढ़िया! मैंने "${result.noteData.title || 'नया नोट'}" नोट बना दिया है। क्या आप इसका AI सारांश भी चाहते हैं?`
-            : `✅ Great! I've created the note "${result.noteData.title || 'New Note'}". Would you like me to generate an AI summary for it?`
+          const successText = detectedLang === 'hindi' 
+            ? `बहुत बढ़िया! मैंने आपका नोट बना दिया है`
+            : `Perfect! I've created your note successfully`
           
           const successMessage: Message = {
             id: (Date.now() + 2).toString(),
@@ -330,78 +875,24 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
           }
           setMessages(prev => [...prev, successMessage])
           
-          // Store the note ID for potential summary generation
-          if (newNote?.id) {
-            setPendingSummaryNoteId(newNote.id)
-          }
-          
-          // Speak success message in appropriate language
           if (speechEnabled) {
-            const speechText = result.language === 'hindi' || currentLanguage === 'hindi'
-              ? `नोट तैयार हो गया! क्या आप AI सारांश चाहते हैं?`
-              : `Note created successfully! Would you like an AI summary?`
-            speak(speechText, result.language === 'hindi' || currentLanguage === 'hindi' ? 'hindi' : 'english')
+            setTimeout(() => speak(successText, detectedLang), 400)
           }
-          
         } catch (error) {
           console.error('Failed to create note:', error)
-          const errorText = result.language === 'hindi' || currentLanguage === 'hindi'
-            ? "माफ करें, नोट बनाने में समस्या हुई। कृपया फिर से कोशिश करें।"
-            : "Sorry, I couldn't create the note. Please try again."
-          
-          const errorMessage: Message = {
-            id: (Date.now() + 2).toString(),
-            type: 'assistant',
-            text: errorText,
-            timestamp: new Date()
-          }
-          setMessages(prev => [...prev, errorMessage])
         }
       }
 
-      // Handle summary generation request
-      if (result.askSummary && pendingSummaryNoteId && 
-          (text.toLowerCase().includes('yes') || text.toLowerCase().includes('हाँ') || 
-           text.toLowerCase().includes('जी') || text.toLowerCase().includes('summary'))) {
-        
-        if (onGenerateSummary) {
-          try {
-            await onGenerateSummary(pendingSummaryNoteId)
-            const summaryText = result.language === 'hindi' || currentLanguage === 'hindi'
-              ? "🧠 AI सारांश तैयार हो रहा है... कुछ सेकंड रुकें!"
-              : "🧠 Generating AI summary... Please wait a moment!"
-            
-            const summaryMessage: Message = {
-              id: (Date.now() + 3).toString(),
-              type: 'assistant',
-              text: summaryText,
-              timestamp: new Date()
-            }
-            setMessages(prev => [...prev, summaryMessage])
-            setPendingSummaryNoteId(null)
-          } catch (error) {
-            console.error('Failed to generate summary:', error)
-          }
-        }
-      }
-
-      // Speak the AI response in the correct language
-      if (speechEnabled && result.response) {
-        speak(result.response, result.language === 'hindi' || currentLanguage === 'hindi' ? 'hindi' : 'english')
-      }
-
-      // Auto-select first found note if any
-      if (result.foundNotes && result.foundNotes.length > 0) {
-        setTimeout(() => {
-          onNoteSelect(result.foundNotes[0])
-        }, 1000)
+      // Auto-select found notes
+      if (result.foundNotes?.length > 0) {
+        setTimeout(() => onNoteSelect(result.foundNotes[0]), 800)
       }
 
     } catch (error) {
       console.error('Error processing voice query:', error)
       const errorText = currentLanguage === 'hindi'
-        ? "माफ करें, मुझे कुछ समस्या हुई। कृपया फिर से कोशिश करें।"
-        : "I'm sorry, I couldn't process your request. Please try again."
+        ? "माफ करें, मुझे समस्या हुई। कृपया फिर से कोशिश करें।"
+        : "Sorry, I couldn't process that. Please try again."
       
       const errorMessage: Message = {
         id: (Date.now() + 1).toString(),
@@ -412,10 +903,7 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
       setMessages(prev => [...prev, errorMessage])
       
       if (speechEnabled) {
-        const errorSpeech = currentLanguage === 'hindi' 
-          ? "माफ करें, कुछ गलत हुआ।" 
-          : "Sorry, something went wrong."
-        speak(errorSpeech, currentLanguage)
+        setTimeout(() => speak(errorText, currentLanguage), 200)
       }
     } finally {
       setIsProcessing(false)
@@ -424,6 +912,9 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
 
   const handleTextInput = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
+      // Record user interaction
+      setHasUserInteracted(true)
+      
       const input = e.currentTarget
       const text = input.value.trim()
       if (text) {
@@ -433,30 +924,238 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
     }
   }
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  const toggleSpeech = () => {
+    setSpeechEnabled(!speechEnabled)
+    if (isSpeaking) {
+      window.speechSynthesis.cancel()
+      setIsSpeaking(false)
+    }
   }
 
-  // Handle first-time user welcome
-  useEffect(() => {
-    if (isFirstTime && userId && typeof window !== 'undefined') {
-      setTimeout(() => {
-        setIsOpen(true)
-        const welcomeMessage: Message = {
-          id: Date.now().toString(),
-          type: 'assistant',
-          text: "नमस्ते! मैं Brainer हूँ, आपका AI असिस्टेंट। 🧠 मैं आपकी नोट्स बनाने, खोजने और ऐप का उपयोग करने में मदद कर सकता हूँ। आप मुझसे हिंदी या English में बात कर सकते हैं। कुछ भी पूछें!",
-          timestamp: new Date()
-        }
-        setMessages([welcomeMessage])
-        
-        if (speechEnabled) {
-          speak("Hello! I'm Brainer, your AI assistant. I can help you create notes, find information, and navigate the app. You can talk to me in Hindi or English. Ask me anything!", 'english')
-        }
-      }, 1000)
+  // Toggle language function
+  const toggleLanguage = () => {
+    const newLanguage = currentLanguage === 'english' ? 'hindi' : 'english'
+    console.log('🌐 Switching language from', currentLanguage, 'to', newLanguage)
+    setCurrentLanguage(newLanguage)
+    
+    // Update recognition language if currently listening
+    if (recognitionRef.current) {
+      const newLang = newLanguage === 'hindi' ? 'hi-IN' : 'en-US'
+      recognitionRef.current.lang = newLang
+      console.log('🌐 Updated recognition language to:', newLang)
     }
-  }, [isFirstTime, userId, speechEnabled])
+    
+    // Announce language change
+    const announcement = newLanguage === 'hindi' 
+      ? 'भाषा हिंदी में बदल गई है'
+      : 'Language switched to English'
+    
+    setTimeout(() => speak(announcement, newLanguage), 200)
+  }
 
+  // Cleanup effect
+  useEffect(() => {
+    return () => {
+      // Clear any pending timeouts
+      if (wakeWordTimeoutRef.current) {
+        clearTimeout(wakeWordTimeoutRef.current)
+      }
+
+      // Cleanup all recognition instances when component unmounts
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.stop()
+        } catch (error) {
+          console.log('Recognition cleanup error:', error)
+        }
+      }
+      
+      if (wakeWordRecognitionRef.current) {
+        try {
+          wakeWordRecognitionRef.current.stop()
+        } catch (error) {
+          console.log('Wake word recognition cleanup error:', error)
+        }
+      }
+      
+      // Stop any ongoing speech and clear references
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      
+      if (currentUtteranceRef.current) {
+        currentUtteranceRef.current = null
+      }
+      
+      setIsSpeaking(false)
+    }
+  }, [])
+
+  // Stop all recognition when assistant closes
+  useEffect(() => {
+    if (!isOpen) {
+      // Clear any pending timeouts
+      if (wakeWordTimeoutRef.current) {
+        clearTimeout(wakeWordTimeoutRef.current)
+        wakeWordTimeoutRef.current = null
+      }
+
+      // Stop all recognition when closing
+      if (recognitionRef.current && isListening) {
+        try {
+          recognitionRef.current.stop()
+        } catch (error) {
+          console.log('Stop recognition on close error:', error)
+        }
+      }
+      
+      if (wakeWordRecognitionRef.current && (isWakeWordListening || isStartingWakeWord)) {
+        try {
+          wakeWordRecognitionRef.current.stop()
+        } catch (error) {
+          console.log('Stop wake word recognition on close error:', error)
+        }
+      }
+      
+      // Stop speech when closing
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel()
+      }
+      
+      if (currentUtteranceRef.current) {
+        currentUtteranceRef.current = null
+      }
+      
+      setIsListening(false)
+      setIsWakeWordListening(false)
+      setIsStartingWakeWord(false)
+      setIsSpeaking(false)
+    }
+  }, [isOpen])
+
+  // Test Hindi speech function
+  const testHindiSpeech = () => {
+    console.log('🧪 Testing Hindi speech')
+    setHasUserInteracted(true) // Ensure user interaction is recorded
+    setCurrentLanguage('hindi') // Set language to Hindi
+    const hindiText = "नमस्ते! मैं हिंदी में बोल रहा हूँ।"
+    
+    // Force immediate speech test
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(hindiText)
+        
+        // Try to find Hindi voice
+        const voices = window.speechSynthesis.getVoices()
+        const hindiVoice = voices.find(voice => 
+          voice.lang.includes('hi') || voice.name.toLowerCase().includes('hindi')
+        )
+        
+        if (hindiVoice) {
+          utterance.voice = hindiVoice
+          utterance.lang = 'hi-IN'
+          console.log('🧪 Using Hindi voice:', hindiVoice.name)
+        } else {
+          utterance.lang = 'en-US'
+          console.log('🧪 No Hindi voice found, using default with English settings')
+        }
+        
+        utterance.rate = 0.8
+        utterance.pitch = 1.0
+        utterance.volume = 1.0
+        
+        utterance.onstart = () => {
+          console.log('🧪 Hindi test speech started')
+          setIsSpeaking(true)
+        }
+        
+        utterance.onend = () => {
+          console.log('🧪 Hindi test speech ended')
+          setIsSpeaking(false)
+        }
+        
+        utterance.onerror = (event) => {
+          console.error('🧪 Hindi test speech error:', event.error)
+          setIsSpeaking(false)
+          
+          // Try fallback immediately
+          console.log('🧪 Trying Hindi fallback with English voice')
+          const fallbackUtterance = new SpeechSynthesisUtterance(hindiText)
+          fallbackUtterance.lang = 'en-US'
+          fallbackUtterance.rate = 0.8
+          fallbackUtterance.volume = 1.0
+          
+          fallbackUtterance.onstart = () => {
+            console.log('🧪 Hindi fallback test started')
+            setIsSpeaking(true)
+          }
+          
+          fallbackUtterance.onend = () => {
+            console.log('🧪 Hindi fallback test ended')
+            setIsSpeaking(false)
+          }
+          
+          window.speechSynthesis.speak(fallbackUtterance)
+        }
+        
+        console.log('🧪 Starting Hindi test speech')
+        window.speechSynthesis.speak(utterance)
+      }, 100)
+    }
+  }
+
+  // Test English speech function
+  const testEnglishSpeech = () => {
+    console.log('🧪 Testing English speech')
+    setHasUserInteracted(true) // Ensure user interaction is recorded
+    setCurrentLanguage('english') // Set language to English
+    const englishText = "Hello! I am speaking in English."
+    speak(englishText, 'english')
+  }
+
+  // Manual speech test function
+  const testSpeechSynthesis = () => {
+    console.log('🧪 Manual speech synthesis test')
+    setHasUserInteracted(true)
+    
+    const testText = currentLanguage === 'hindi' 
+      ? "यह एक परीक्षण है। क्या आप मुझे सुन सकते हैं?"
+      : "This is a test. Can you hear me speaking?"
+    
+    // Force speech synthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel()
+      
+      setTimeout(() => {
+        const utterance = new SpeechSynthesisUtterance(testText)
+        utterance.lang = currentLanguage === 'hindi' ? 'hi-IN' : 'en-US'
+        utterance.rate = 0.9
+        utterance.volume = 1.0
+        
+        utterance.onstart = () => {
+          console.log('🧪 Manual test speech started')
+          setIsSpeaking(true)
+        }
+        
+        utterance.onend = () => {
+          console.log('🧪 Manual test speech ended')
+          setIsSpeaking(false)
+        }
+        
+        utterance.onerror = (event) => {
+          console.error('🧪 Manual test speech error:', event.error)
+          setIsSpeaking(false)
+        }
+        
+        console.log('🧪 Starting manual test speech')
+        window.speechSynthesis.speak(utterance)
+      }, 100)
+    }
+  }
+
+  // Floating button when closed
   if (!isOpen) {
     return (
       <button
@@ -477,15 +1176,46 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
       <div className="flex items-center justify-between p-4 border-b bg-blue-50 rounded-t-lg">
         <div className="flex items-center gap-2">
           <Brain className="w-5 h-5 text-blue-600" />
-          <span className="font-medium text-blue-900">Voice Assistant</span>
+          <span className="font-medium text-blue-900">Brainer Assistant</span>
+          {isWakeWordListening && (
+            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse" title="Listening for 'Hey Brainer'"></div>
+          )}
+          {/* Language indicator */}
+          <button
+            onClick={toggleLanguage}
+            className={`px-2 py-1 rounded text-xs font-medium cursor-pointer transition-colors ${
+              currentLanguage === 'hindi' 
+                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200' 
+                : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+            }`}
+            title={`Current: ${currentLanguage === 'hindi' ? 'Hindi' : 'English'} - Click to switch`}
+          >
+            {currentLanguage === 'hindi' ? 'हिंदी' : 'EN'}
+          </button>
+          {/* Voice loading indicator */}
+          {!voicesLoaded && (
+            <div className="w-2 h-2 bg-yellow-400 rounded-full animate-pulse" title="Loading voices..."></div>
+          )}
         </div>
         <div className="flex items-center gap-2">
           <button
-            onClick={() => setSpeechEnabled(!speechEnabled)}
-            className={`p-1 rounded ${speechEnabled ? 'text-blue-600' : 'text-gray-400'}`}
+            onClick={toggleSpeech}
+            className={`p-1 rounded transition-colors ${
+              speechEnabled ? 'text-blue-600 bg-blue-100' : 'text-gray-400 bg-gray-100'
+            }`}
+            title={speechEnabled ? 'Voice enabled' : 'Voice disabled'}
           >
             {speechEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
           </button>
+          
+          <button
+            onClick={toggleLanguage}
+            className="p-1 rounded transition-colors text-gray-400 bg-gray-100 hover:text-gray-500"
+            title="Switch language"
+          >
+            🌐
+          </button>
+          
           <button
             onClick={() => setIsOpen(false)}
             className="text-gray-500 hover:text-gray-700 font-bold text-lg"
@@ -500,44 +1230,13 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
         {messages.length === 0 && !isFirstTime && (
           <div className="text-center text-gray-500 text-sm">
             <Brain className="w-8 h-8 mx-auto mb-2 text-gray-400" />
-            <p>Hi! I'm Brainer, your AI assistant! 🧠</p>
-            <p>I can speak <span className="font-semibold">English</span> and <span className="font-semibold">हिंदी</span></p>
+            <p>Hi! I'm Brainer, your intelligent assistant</p>
+            <p>I can help you with notes in English and Hindi</p>
             <div className="mt-3 space-y-1 text-xs">
               <p>Try saying:</p>
-              <p>"Create a note about my meeting"</p>
-              <p>"Find notes about work"</p>
-              <p>"How do I upload voice notes?"</p>
+              <p>"Hey Brainer, create a note about my meeting"</p>
+              <p>"Find my work notes"</p>
             </div>
-          </div>
-        )}
-
-        {/* Quick Action Buttons */}
-        {messages.length === 0 && (
-          <div className="grid grid-cols-2 gap-2 mt-4">
-            <button
-              onClick={() => handleUserMessage("How do I create notes in this app?")}
-              className="p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg text-xs transition-colors"
-            >
-              📝 How to create notes?
-            </button>
-            <button
-              onClick={() => handleUserMessage("Explain voice transcription feature")}
-              className="p-3 bg-green-50 hover:bg-green-100 border border-green-200 rounded-lg text-xs transition-colors"
-            >
-              🎤 Voice features?
-            </button>
-            <button
-              onClick={() => handleUserMessage("What is AI summary?")}
-              className="p-3 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg text-xs transition-colors"
-            >
-              🧠 AI Summary?
-            </button>
-            <button
-              onClick={() => handleUserMessage("Create a note about my daily tasks")}
-              className="p-3 bg-yellow-50 hover:bg-yellow-100 border border-yellow-200 rounded-lg text-xs transition-colors"
-            >
-              ➕ Create sample note
-            </button>
           </div>
         )}
 
@@ -557,25 +1256,8 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
               <p className={`text-xs mt-1 ${
                 message.type === 'user' ? 'text-blue-100' : 'text-gray-500'
               }`}>
-                {formatTime(message.timestamp)}
+                {message.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </p>
-              {message.foundNotes && message.foundNotes.length > 0 && (
-                <div className="mt-2 pt-2 border-t border-gray-200">
-                  <p className="text-xs text-gray-600 mb-1">Found notes:</p>
-                  {message.foundNotes.slice(0, 3).map((noteId) => {
-                    const note = notes.find(n => n.id === noteId)
-                    return note ? (
-                      <button
-                        key={noteId}
-                        onClick={() => onNoteSelect(noteId)}
-                        className="block w-full text-left text-xs bg-gray-100 hover:bg-gray-200 p-2 rounded mb-1 transition-colors"
-                      >
-                        {note.title}
-                      </button>
-                    ) : null
-                  })}
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -584,8 +1266,8 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
           <div className="flex justify-start">
             <div className="bg-white text-gray-900 border p-3 rounded-lg">
               <div className="flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-sm">Thinking...</span>
+                <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                <span className="text-sm">Processing...</span>
               </div>
             </div>
           </div>
@@ -594,50 +1276,12 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
 
       {/* Input */}
       <div className="p-4 border-t bg-white rounded-b-lg">
-        {/* Speech Error Display */}
-        {speechError && (
-          <div className="mb-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-            <div className="flex items-start gap-2">
-              <div className="w-4 h-4 text-red-500 mt-0.5">⚠️</div>
-              <div className="flex-1">
-                <p className="text-sm text-red-800">{speechError}</p>
-                
-                {/* HTTPS Setup Instructions */}
-                {speechError.includes('HTTPS') && (
-                  <div className="mt-2 p-2 bg-yellow-50 border border-yellow-200 rounded text-xs">
-                    <p className="font-semibold text-yellow-800 mb-1">Quick Fix:</p>
-                    <p className="text-yellow-700 mb-1">1. Stop the server (Ctrl+C)</p>
-                    <p className="text-yellow-700 mb-1">2. Run: <code className="bg-yellow-200 px-1 rounded">npm run dev:https</code></p>
-                    <p className="text-yellow-700">3. Accept the security warning in your browser</p>
-                  </div>
-                )}
-                
-                {speechError.includes('network') && !speechError.includes('HTTPS') && (
-                  <button
-                    onClick={retryListening}
-                    disabled={isRetrying}
-                    className="mt-2 px-3 py-1 bg-red-600 hover:bg-red-700 disabled:bg-red-400 text-white text-xs rounded transition-colors flex items-center gap-1"
-                  >
-                    {isRetrying ? (
-                      <>
-                        <div className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin"></div>
-                        Retrying...
-                      </>
-                    ) : (
-                      'Retry Voice Input'
-                    )}
-                  </button>
-                )}
-                
-                {/* Browser Compatibility Info */}
-                {speechError.includes('not supported') && (
-                  <div className="mt-2 p-2 bg-blue-50 border border-blue-200 rounded text-xs">
-                    <p className="font-semibold text-blue-800 mb-1">Supported Browsers:</p>
-                    <p className="text-blue-700">✅ Chrome, Edge, Safari (latest versions)</p>
-                    <p className="text-blue-700">❌ Firefox (limited support)</p>
-                  </div>
-                )}
-              </div>
+        {/* Wake word status */}
+        {isWakeWordListening && (
+          <div className="mb-3 p-2 bg-green-50 border border-green-200 rounded-lg">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              <span className="text-xs text-green-800">Say "Hey Brainer" to start...</span>
             </div>
           </div>
         )}
@@ -645,36 +1289,82 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
         <div className="flex items-center gap-2">
           <input
             type="text"
-            placeholder="Type your message or use voice..."
+            placeholder={currentLanguage === 'hindi' ? "अपना संदेश टाइप करें या 'Hey Brainer' कहें..." : "Type your message or say 'Hey Brainer'..."}
             className="flex-1 px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             onKeyPress={handleTextInput}
           />
           
-          {hasPermission === false ? (
-            <button
-              onClick={checkMicrophonePermission}
-              className="p-2 bg-red-100 text-red-600 rounded-lg hover:bg-red-200 transition-colors"
-            >
-              <MicOff className="w-4 h-4" />
-            </button>
-          ) : (
-            <button
-              onClick={isListening ? stopListening : startListening}
-              disabled={isProcessing || isRetrying}
-              className={`p-2 rounded-lg transition-colors ${
-                isListening
-                  ? 'bg-red-100 text-red-600 hover:bg-red-200'
-                  : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
-              } disabled:opacity-50`}
-            >
-              <Mic className={`w-4 h-4 ${isListening ? 'animate-pulse' : ''}`} />
-            </button>
-          )}
+          {/* Test buttons for debugging speech */}
+          <button
+            onClick={testEnglishSpeech}
+            className="p-2 rounded-lg bg-blue-100 text-blue-600 hover:bg-blue-200 transition-colors cursor-pointer text-xs"
+            title="Test English Speech"
+          >
+            EN
+          </button>
+          
+          <button
+            onClick={testHindiSpeech}
+            className="p-2 rounded-lg bg-orange-100 text-orange-600 hover:bg-orange-200 transition-colors cursor-pointer text-xs"
+            title="Test Hindi Speech"
+          >
+            हि
+          </button>
+          
+          {/* Manual speech synthesis test */}
+          <button
+            onClick={testSpeechSynthesis}
+            className="p-2 rounded-lg bg-purple-100 text-purple-600 hover:bg-purple-200 transition-colors cursor-pointer text-xs"
+            title="Force Speech Test"
+          >
+            🔊
+          </button>
+          
+          {/* Test button to verify clickability */}
+          <button
+            onClick={() => {
+              console.log('🧪 Test button clicked!')
+              setHasUserInteracted(true)
+              alert('Test button works!')
+            }}
+            className="p-2 rounded-lg bg-green-100 text-green-600 hover:bg-green-200 transition-colors cursor-pointer"
+            title="Test Button"
+          >
+            🧪
+          </button>
+          
+          <button
+            onClick={(e) => {
+              e.preventDefault()
+              e.stopPropagation()
+              console.log('🎤 Mic button clicked! isListening:', isListening, 'isProcessing:', isProcessing)
+              if (isListening) {
+                console.log('🎤 Stopping listening...')
+                stopListening()
+              } else {
+                console.log('🎤 Starting listening...')
+                startListening()
+              }
+            }}
+            disabled={false}
+            className={`p-2 rounded-lg transition-colors cursor-pointer border-2 ${
+              isListening
+                ? 'bg-red-100 text-red-600 hover:bg-red-200 border-red-300'
+                : 'bg-blue-100 text-blue-600 hover:bg-blue-200 border-blue-300'
+            }`}
+            title={isListening ? 'Stop listening' : 'Start listening'}
+            style={{ minWidth: '40px', minHeight: '40px', zIndex: 1000 }}
+          >
+            <Mic className={`w-4 h-4 ${isListening ? 'animate-pulse' : ''}`} />
+          </button>
 
           {isSpeaking && (
             <button
-              onClick={stopSpeaking}
-              className="p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors"
+              onClick={() => {
+                window.speechSynthesis.cancel()
+                setIsSpeaking(false)
+              }}
+              className="p-2 bg-orange-100 text-orange-600 rounded-lg hover:bg-orange-200 transition-colors cursor-pointer"
             >
               <Volume2 className="w-4 h-4 animate-pulse" />
             </button>
@@ -690,11 +1380,11 @@ export function VoiceAssistant({ notes, onNoteSelect, onCreateNote, onGenerateSu
           </div>
         )}
 
-        {isRetrying && (
+        {isSpeaking && (
           <div className="mt-2 text-center">
-            <div className="flex items-center justify-center gap-2 text-blue-600">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>
-              <span className="text-xs">Retrying voice input...</span>
+            <div className="flex items-center justify-center gap-2 text-xs text-green-600">
+              <Volume2 className="w-3 h-3 animate-pulse" />
+              <span>Speaking...</span>
             </div>
           </div>
         )}

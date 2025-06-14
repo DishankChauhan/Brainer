@@ -5,34 +5,36 @@ import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcrib
 import { getAWSServiceStatus } from '@/lib/aws-config'
 import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
 import { generateSummary as generateOpenAISummary } from '@/lib/openai'
+import { withAuth, AuthenticatedRequest } from '@/lib/auth-middleware'
+import { validateFileUpload } from '@/lib/input-validation'
 
-export async function POST(request: NextRequest) {
+async function uploadHandler(request: AuthenticatedRequest) {
   try {
     const formData = await request.formData()
     const file = formData.get('file') as File
-    const userId = formData.get('userId') as string
     const type = formData.get('type') as 'voice' | 'screenshot'
+    const userId = request.user.uid // Get userId from authenticated user
 
-    console.log('Upload API called:', { fileName: file?.name, userId, type })
-
-    if (!file || !userId || !type) {
+    if (!file || !type) {
       return NextResponse.json(
-        { error: 'File, userId, and type are required' }, 
+        { error: 'File and type are required' }, 
         { status: 400 }
       )
     }
 
-    // Validate file types
-    if (type === 'voice' && !file.type.startsWith('audio/')) {
+    // Validate file upload
+    console.log('Upload validation:', { 
+      fileName: file.name, 
+      fileType: file.type, 
+      fileSize: file.size, 
+      type 
+    })
+    
+    const validationError = validateFileUpload(file, type)
+    if (validationError) {
+      console.error('Upload validation failed:', validationError)
       return NextResponse.json(
-        { error: 'Invalid audio file type' }, 
-        { status: 400 }
-      )
-    }
-
-    if (type === 'screenshot' && !file.type.startsWith('image/')) {
-      return NextResponse.json(
-        { error: 'Invalid image file type' }, 
+        { error: validationError },
         { status: 400 }
       )
     }
@@ -48,8 +50,6 @@ export async function POST(request: NextRequest) {
         { status: 404 }
       )
     }
-
-    console.log('Processing file:', file.name, 'for user:', user.email)
 
     // Convert file to buffer for processing
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -102,13 +102,9 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    console.log('Created note from', type, 'upload:', note.id)
-
     // AUTO-GENERATE EMBEDDING for screenshot content (voice embeddings are handled in transcription completion)
     if (type === 'screenshot' && extractedText && shouldGenerateEmbedding(extractedText)) {
       try {
-        console.log('Auto-generating embedding for screenshot note:', note.id)
-        
         // Prepare content for embedding
         const contentForEmbedding = prepareContentForEmbedding(extractedText)
         const fullText = `${noteTitle}\n\n${contentForEmbedding}`
@@ -127,9 +123,7 @@ export async function POST(request: NextRequest) {
           WHERE id = ${note.id}
         `
         
-        console.log('Embedding auto-generated successfully for screenshot note:', note.id)
       } catch (embeddingError) {
-        console.error('Failed to auto-generate embedding for screenshot note:', embeddingError)
         // Don't fail the upload if embedding generation fails
       }
     }
@@ -137,8 +131,6 @@ export async function POST(request: NextRequest) {
     // AUTO-GENERATE AI SUMMARY for screenshot content 
     if (type === 'screenshot' && extractedText && extractedText.length >= 50) {
       try {
-        console.log('Auto-generating AI summary for screenshot note:', note.id)
-        
         // Generate AI summary using OpenAI
         const summaryResult = await generateOpenAISummary(extractedText)
         
@@ -154,9 +146,7 @@ export async function POST(request: NextRequest) {
           }
         })
         
-        console.log('AI summary auto-generated successfully for screenshot note:', note.id)
       } catch (summaryError) {
-        console.error('Failed to auto-generate AI summary for screenshot note:', summaryError)
         // Don't fail the upload if summary generation fails
       }
     }
@@ -182,7 +172,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(transformedNote, { status: 201 })
   } catch (error) {
-    console.error('Upload error:', error)
     return NextResponse.json(
       { 
         error: 'Upload failed', 
@@ -199,15 +188,11 @@ async function processVoiceFile(
   filename: string, 
   userId: string
 ): Promise<{ content: string; jobId?: string; s3Key?: string; isProcessing: boolean }> {
-  console.log('Processing voice file:', filename)
-  
   const fileSizeKB = Math.round(buffer.length / 1024)
   const awsStatus = getAWSServiceStatus()
   
   // Check if AWS Transcribe is available
   if (!isTranscribeAvailable()) {
-    console.log('AWS Transcribe not configured, using placeholder mode')
-    
     return {
       content: `# Voice Recording Uploaded\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n## 🔧 Transcription Service Status\n\n${awsStatus.message}\n\n**To enable automatic transcription:**\n1. Configure AWS credentials in your environment\n2. Set up an S3 bucket for audio storage\n3. Enable AWS Transcribe service\n\n---\n\n**What you can do now:**\n- Edit this note to add manual transcription\n- Add tags to organize your voice notes\n- This note will be automatically updated once transcription is available`,
       isProcessing: false
@@ -225,8 +210,6 @@ async function processVoiceFile(
       userId
     )
     
-    console.log('AWS Transcribe job started:', jobId)
-    
     return {
       content: `# 🎙️ Voice Recording - Transcribing...\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n**Job ID:** ${jobId}\n\n## 🔄 Transcription in Progress\n\nYour voice recording is being processed by AWS Transcribe. This usually takes 1-3 minutes depending on the audio length.\n\n**Status:** Processing started at ${new Date().toLocaleTimeString()}\n\n---\n\n**What happens next:**\n- ✅ Audio uploaded to secure cloud storage\n- 🔄 AI transcription in progress\n- 🔔 This note will automatically update with the transcript\n- 🗑️ Audio files are automatically cleaned up after processing\n\n**You can:**\n- Leave this tab open to see live updates\n- Add tags while waiting\n- Start working on other notes\n\n*This note will refresh automatically when transcription completes.*`,
       jobId,
@@ -234,8 +217,6 @@ async function processVoiceFile(
       isProcessing: true
     }
   } catch (error) {
-    console.error('AWS Transcribe failed, falling back to placeholder:', error)
-    
     return {
       content: `# Voice Recording Upload\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n## ⚠️ Transcription Service Temporarily Unavailable\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown transcription error'}\n\n**What you can do:**\n- Try uploading again in a few minutes\n- Check your AWS service configuration\n- Add manual transcription below\n\n---\n\n**Manual Transcription Area:**\n\n*Click Edit to add your transcription here...*\n\n---\n\n*Automatic transcription will resume once the service is restored.*`,
       isProcessing: false
@@ -245,28 +226,20 @@ async function processVoiceFile(
 
 // OCR processing with Tesseract.js - configured for Next.js
 async function processImageFile(buffer: Buffer, filename: string): Promise<string> {
-  console.log('Processing image file with OCR:', filename)
-  
   try {
     // Import Tesseract dynamically to avoid SSR issues
     const Tesseract = await import('tesseract.js')
-    
-    console.log('OCR worker starting...')
     
     // Create worker with simpler configuration
     const worker = await Tesseract.createWorker('eng', 1, {
       logger: m => console.log('OCR Progress:', m.status, m.progress)
     })
     
-    console.log('OCR worker created, processing image...')
-    
     // Process the image buffer
     const { data: { text } } = await worker.recognize(buffer)
     
     // Clean up the worker
     await worker.terminate()
-    
-    console.log('OCR processing complete, extracted text length:', text.length)
     
     if (!text.trim()) {
       return `# Screenshot Processed\n\n**File:** ${filename}\n\n*No text was detected in this image.*\n\nThis could be because:\n- The image contains no text\n- The text is too small or blurry\n- The image is mainly graphics/diagrams\n\nYou can still use this note to:\n- Add manual descriptions\n- Reference the original screenshot\n- Add relevant tags`
@@ -275,8 +248,6 @@ async function processImageFile(buffer: Buffer, filename: string): Promise<strin
     return `# Screenshot Text Extraction\n\n**File:** ${filename}\n\n## Extracted Text:\n\n${text.trim()}\n\n---\n\n*Text extracted using OCR technology. Some formatting may be lost.*`
     
   } catch (error) {
-    console.error('OCR processing failed:', error)
-    
     // Fallback: create a note without OCR
     return `# Screenshot Upload\n\n**File:** ${filename}\n\n*OCR processing failed, but your screenshot has been saved.*\n\n**You can:**\n- Manually add any text content from the image\n- Add a description of what the screenshot contains\n- Use this note to reference the original image\n\n**Technical Details:** OCR service temporarily unavailable. This often resolves itself - try uploading again later.\n\n---\n\n*To add content manually, click the Edit button above.*`
   }
@@ -297,4 +268,7 @@ async function generatePlaceholderSummary(text: string, type: 'voice' | 'screens
       ? 'This appears to be a substantial amount of text that may contain important information.' 
       : 'This is a brief snippet of text.'
   }\n\n*Full AI summarization will be available soon with OpenAI integration.*`
-} 
+}
+
+// Export handler with authentication middleware
+export const POST = withAuth(uploadHandler) 

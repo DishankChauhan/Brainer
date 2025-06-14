@@ -25,6 +25,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "firebase": "^11.9.0",
+    "firebase-admin": "^13.4.0",
     "framer-motion": "^12.16.0",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.513.0",
@@ -39,7 +40,8 @@
     "tailwind-merge": "^3.3.0",
     "tesseract.js": "^6.0.1",
     "uuid": "^11.1.0",
-    "vector-math": "^1.1.0"
+    "vector-math": "^1.1.0",
+    "zod": "^3.25.56"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",

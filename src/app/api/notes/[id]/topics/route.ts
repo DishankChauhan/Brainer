@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { extractTopicsAndConcepts } from '@/lib/embeddings'
+import { withResourceOwnership, AuthenticatedRequest, getNoteOwner } from '@/lib/auth-middleware'
+import { booleanOptionSchema } from '@/lib/input-validation'
 
 interface RouteParams {
   params: Promise<{
@@ -8,13 +10,15 @@ interface RouteParams {
   }>
 }
 
-export async function POST(request: NextRequest, { params }: RouteParams) {
+async function topicsHandler(
+  request: AuthenticatedRequest,
+  validatedData: { forceRegenerate?: boolean },
+  { params }: RouteParams
+) {
   try {
     const { id } = await params
-    const { forceRegenerate } = await request.json().catch(() => ({}))
+    const { forceRegenerate } = validatedData
     
-    console.log('POST /api/notes/[id]/topics - noteId:', id)
-
     // Find the note
     const note = await prisma.note.findUnique({
       where: { id }
@@ -40,8 +44,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }, { status: 400 })
     }
 
-    console.log('Extracting topics for note:', id)
-
     // Extract topics and concepts using OpenAI
     const topicsResult = await extractTopicsAndConcepts(note.content)
 
@@ -61,8 +63,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       }
     })
 
-    console.log('Topics extracted successfully for note:', id)
-
     return NextResponse.json({
       message: 'Topics extracted successfully',
       topics: {
@@ -74,8 +74,6 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     })
 
   } catch (error) {
-    console.error('Error extracting topics:', error)
-    
     if (error instanceof Error) {
       if (error.message.includes('OPENAI_API_KEY')) {
         return NextResponse.json({ 
@@ -95,4 +93,19 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       details: error instanceof Error ? error.message : 'Unknown error'
     }, { status: 500 })
   }
-} 
+}
+
+// Export handler with authentication and resource ownership
+export const POST = withResourceOwnership(getNoteOwner)(
+  async (request: AuthenticatedRequest, { params }: RouteParams) => {
+    try {
+      const body = await request.json().catch(() => ({}))
+      const validatedData = booleanOptionSchema.parse(body)
+      return await topicsHandler(request, validatedData, { params })
+    } catch (error) {
+      return NextResponse.json({
+        error: 'Invalid input format'
+      }, { status: 400 })
+    }
+  }
+) 

@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
+import { withAuth, AuthenticatedRequest } from '@/lib/auth-middleware';
+import { voiceAssistantSchema } from '@/lib/input-validation';
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -13,9 +15,13 @@ interface Note {
   tags: { id: string; name: string; color: string }[];
 }
 
-export async function POST(req: Request) {
+async function voiceAssistantHandler(
+  request: AuthenticatedRequest,
+  validatedData: { query: string; notes?: Note[]; userId?: string }
+) {
   try {
-    const { query, notes, userId } = await req.json()
+    const { query, notes = [] } = validatedData
+    const userId = request.user.uid // Get userId from authenticated user
 
     // Enhanced Hindi detection
     const isHindi = /[\u0900-\u097F]/.test(query) || 
@@ -125,14 +131,11 @@ Language Detected: ${isHindi ? 'Hindi' : 'English'}`
         }
       }
 
-      return Response.json(parsedResponse)
+      return NextResponse.json(parsedResponse)
 
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError)
-      console.log('Raw AI response:', aiResponse)
-      
       // Fallback response
-      return Response.json({
+      return NextResponse.json({
         response: isHindi 
           ? "माफ करें, मुझे आपकी बात समझने में दिक्कत हुई। कृपया फिर से कोशिश करें।"
           : "I'm sorry, I didn't understand that properly. Could you please try again?",
@@ -144,9 +147,7 @@ Language Detected: ${isHindi ? 'Hindi' : 'English'}`
     }
 
   } catch (error) {
-    console.error('Voice assistant error:', error)
-    
-    return Response.json({
+    return NextResponse.json({
       response: "I'm experiencing some technical difficulties. Please try again.",
       action: "help", 
       language: "english",
@@ -154,4 +155,19 @@ Language Detected: ${isHindi ? 'Hindi' : 'English'}`
       askSummary: false
     }, { status: 500 })
   }
-} 
+}
+
+// Export handler with authentication and input validation
+export const POST = withAuth(
+  async (request: AuthenticatedRequest) => {
+    try {
+      const body = await request.json()
+      const validatedData = voiceAssistantSchema.parse(body)
+      return await voiceAssistantHandler(request, validatedData)
+    } catch (error) {
+      return NextResponse.json({
+        error: 'Invalid input format'
+      }, { status: 400 })
+    }
+  }
+) 

@@ -219,7 +219,7 @@ const RotatingText = forwardRef<RotatingTextRef, RotatingTextProps>(
       return () => clearInterval(intervalId);
     }, [next, rotationInterval, auto, texts.length]);
 
-    return (
+  return (
       <motion.span
         className={cn("inline-flex flex-wrap whitespace-pre-wrap relative align-bottom pb-[10px]", mainClassName)}
         {...rest}
@@ -307,7 +307,7 @@ const CardHeading = ({ icon: Icon, title, description }: CardHeadingProps) => (
             {title}
         </span>
         <p className="mt-8 text-2xl font-semibold text-white">{description}</p>
-    </div>
+        </div>
 )
 
 interface ConnectionNodeProps {
@@ -748,7 +748,7 @@ const InteractiveHero: React.FC = () => {
                 <div className="flex items-center flex-shrink-0 space-x-4 lg:space-x-6">
                     <Link href="/auth/signin">
                         <NavLink className="hidden md:inline-block" asChild>Sign in</NavLink>
-                    </Link>
+          </Link>
 
                     <Link href="/auth/signup">
                         <ButtonCta 
@@ -862,7 +862,7 @@ const InteractiveHero: React.FC = () => {
                     <span className="flex items-center whitespace-nowrap">📸 Screenshots</span>
                     <span className="flex items-center whitespace-nowrap">🔗 Links</span>
                     <span className="flex items-center whitespace-nowrap">🧠 AI Insights</span>
-                </div>
+            </div>
             </motion.div>
 
             <motion.div
@@ -971,7 +971,7 @@ const InteractiveHero: React.FC = () => {
                 >
                     <BrainerDataFlow />
                 </motion.div>
-            </div>
+          </div>
         </section>
 
         {/* Features Section */}
@@ -1008,7 +1008,7 @@ const InteractiveHero: React.FC = () => {
                                     <div className="flex items-center justify-center mb-4">
                                         <div className="w-16 h-16 bg-indigo-600 rounded-full flex items-center justify-center">
                                             <Mic className="w-8 h-8 text-white" />
-                                        </div>
+            </div>
                                     </div>
                                     <div className="text-center">
                                         <p className="text-white font-medium mb-2">Recording...</p>
@@ -1144,8 +1144,8 @@ const InteractiveHero: React.FC = () => {
                                     {...testimonial}
                                 />
                             ))}
-                        </div>
           </div>
+            </div>
 
                     <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-1/3 bg-gradient-to-r from-[#111111] sm:block" />
                     <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-[#111111] sm:block" />
@@ -1188,12 +1188,12 @@ const InteractiveHero: React.FC = () => {
                             <div className="flex items-center gap-3 mb-4">
                                 <div className="w-12 h-12 bg-indigo-600 rounded-full flex items-center justify-center">
                                     <Mic className="w-6 h-6 text-white" />
-                                </div>
+          </div>
                                 <div>
                                     <h3 className="text-white font-semibold text-lg">Voice Intelligence</h3>
                                     <p className="text-gray-400 text-sm">AI-powered transcription</p>
-                                </div>
-                            </div>
+        </div>
+      </div>
                             <div className="bg-gray-800/50 rounded-lg p-4 border border-gray-700/50">
                                 <div className="flex items-center space-x-2 mb-2">
                                     <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>

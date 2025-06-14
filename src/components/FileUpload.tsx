@@ -113,7 +113,18 @@ export function FileUpload({ onFileUpload, className = '' }: FileUploadProps) {
       {showVoiceRecorder && (
         <div className="mb-6">
           <VoiceRecorder 
-            onRecordingComplete={handleVoiceRecording}
+            onRecordingComplete={(audioBlob: Blob, audioUrl: string) => {
+              // Convert blob to file with proper name and type
+              const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+              const fileName = `voice-recording-${timestamp}.webm`
+              const audioFile = new File([audioBlob], fileName, { 
+                type: audioBlob.type || 'audio/webm' 
+              })
+
+              // Process as file upload
+              handleFileSelect([audioFile] as any, 'voice')
+              setShowVoiceRecorder(false) // Hide recorder after successful upload
+            }}
             className="w-full"
           />
         </div>
