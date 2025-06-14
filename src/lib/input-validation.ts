@@ -38,7 +38,17 @@ export const booleanOptionSchema = z.object({
 
 // File upload validation
 export const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
-export const ALLOWED_AUDIO_TYPES = ['audio/wav', 'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/webm', 'audio/ogg', 'audio/aac', 'audio/flac']
+export const ALLOWED_AUDIO_TYPES = [
+  'audio/wav', 
+  'audio/mp3', 
+  'audio/mpeg', 
+  'audio/mp4', 
+  'audio/x-m4a',  // Non-standard M4A MIME type
+  'audio/webm', 
+  'audio/ogg', 
+  'audio/aac', 
+  'audio/flac'
+]
 export const ALLOWED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
 
 export function validateFileUpload(file: File, type: 'voice' | 'screenshot'): string | null {
@@ -52,8 +62,13 @@ export function validateFileUpload(file: File, type: 'voice' | 'screenshot'): st
     const isValidAudio = ALLOWED_AUDIO_TYPES.some(allowedType => 
       file.type.startsWith(allowedType)
     )
-    if (!isValidAudio) {
-      return `Invalid audio file type: ${file.type}. Supported types: ${ALLOWED_AUDIO_TYPES.join(', ')}`
+    
+    // Additional check for M4A files which can have various MIME types
+    const isM4A = file.name.toLowerCase().endsWith('.m4a') && 
+                  (file.type.includes('m4a') || file.type === 'audio/mp4' || file.type === 'audio/x-m4a')
+    
+    if (!isValidAudio && !isM4A) {
+      return `Invalid audio file type: ${file.type}. Supported types: ${ALLOWED_AUDIO_TYPES.join(', ')}, and M4A files`
     }
   }
 
