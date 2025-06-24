@@ -174,10 +174,14 @@ export function VoiceAssistant({
     }
 
     // Check if we're on HTTPS
-    if (typeof window !== 'undefined' && window.location.protocol !== 'https:') {
-      console.warn('Speech recognition requires HTTPS')
-      // If in development, allow HTTP
-      if (process.env.NODE_ENV !== 'development' && !window.location.hostname.includes('localhost')) {
+    if (typeof window !== 'undefined') {
+      const isLocalhost = window.location.hostname === 'localhost' || 
+                         window.location.hostname === '127.0.0.1' ||
+                         window.location.hostname.includes('.local');
+      const isHttps = window.location.protocol === 'https:';
+      
+      if (!isLocalhost && !isHttps) {
+        console.error('Speech recognition requires HTTPS in production')
         return
       }
     }
@@ -219,16 +223,23 @@ export function VoiceAssistant({
           console.log('No speech detected')
         } else if (event.error === 'network') {
           console.error('Network error in speech recognition')
-          // Retry after a short delay
-          setTimeout(() => {
-            if (recognitionRef.current) {
-              try {
-                recognitionRef.current.start()
-              } catch (e) {
-                console.error('Failed to restart recognition:', e)
-              }
+          // Show user-friendly error message
+          const errorMessage: Message = {
+            id: Date.now().toString(),
+            type: 'assistant',
+            text: "I'm having trouble connecting to the speech recognition service. Please make sure you're using HTTPS and try again.",
+            timestamp: new Date()
+          }
+          setMessages(prev => [...prev, errorMessage])
+          
+          // Stop trying to reconnect after multiple failures
+          if (recognitionRef.current) {
+            try {
+              recognitionRef.current.stop()
+            } catch (e) {
+              console.error('Failed to stop recognition:', e)
             }
-          }, 1000)
+          }
         }
       }
     }
