@@ -61,19 +61,19 @@ export function VoiceAssistant({
 
   // Initialize voices
   useEffect(() => {
-    const loadVoices = () => {
-      const voices = window.speechSynthesis.getVoices()
+      const loadVoices = () => {
+        const voices = window.speechSynthesis.getVoices()
       console.log('Available voices:', voices.length)
-      if (voices.length > 0) {
+        if (voices.length > 0) {
         setVoicesReady(true)
         console.log('Voices loaded:', voices.map(v => `${v.name} (${v.lang})`))
+        }
       }
-    }
 
-    // Load voices immediately
-    loadVoices()
-    
-    // Listen for voices changed event
+      // Load voices immediately
+      loadVoices()
+      
+      // Listen for voices changed event
     if ('speechSynthesis' in window) {
       window.speechSynthesis.addEventListener('voiceschanged', loadVoices)
       
@@ -81,7 +81,7 @@ export function VoiceAssistant({
       setTimeout(loadVoices, 1000)
     }
 
-    return () => {
+      return () => {
       if ('speechSynthesis' in window) {
         window.speechSynthesis.removeEventListener('voiceschanged', loadVoices)
       }
@@ -134,7 +134,7 @@ export function VoiceAssistant({
           utterance.voice = voice
           console.log('Using voice:', voice.name)
         }
-      } else {
+    } else {
         utterance.voice = englishVoices[0]
         console.log('Using default English voice:', englishVoices[0].name)
       }
@@ -174,39 +174,39 @@ export function VoiceAssistant({
     }
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-    recognitionRef.current = new SpeechRecognition()
-    
-    if (recognitionRef.current) {
-      recognitionRef.current.continuous = false
-      recognitionRef.current.interimResults = false
+        recognitionRef.current = new SpeechRecognition()
+        
+        if (recognitionRef.current) {
+          recognitionRef.current.continuous = false
+          recognitionRef.current.interimResults = false
       recognitionRef.current.lang = 'en-US'
 
-      recognitionRef.current.onstart = () => {
+          recognitionRef.current.onstart = () => {
         console.log('Speech recognition started')
-        setIsListening(true)
-      }
-      
-      recognitionRef.current.onend = () => {
+            setIsListening(true)
+          }
+          
+          recognitionRef.current.onend = () => {
         console.log('Speech recognition ended')
-        setIsListening(false)
-      }
-      
-      recognitionRef.current.onresult = (event: any) => {
-        const transcript = event.results[0]?.item(0)?.transcript
-        if (transcript) {
+            setIsListening(false)
+          }
+          
+          recognitionRef.current.onresult = (event: any) => {
+              const transcript = event.results[0]?.item(0)?.transcript
+              if (transcript) {
           console.log('Speech result:', transcript)
-          handleUserMessage(transcript)
-        }
-      }
+                handleUserMessage(transcript)
+            }
+          }
 
-      recognitionRef.current.onerror = (event: any) => {
+          recognitionRef.current.onerror = (event: any) => {
         console.log('Speech recognition error:', event.error)
-        setIsListening(false)
-        
+            setIsListening(false)
+            
         if (event.error === 'not-allowed') {
           console.error('Microphone permission denied')
           alert('Please allow microphone access to use voice features')
-        } else if (event.error === 'no-speech') {
+              } else if (event.error === 'no-speech') {
           console.log('No speech detected')
         }
       }
@@ -252,11 +252,11 @@ export function VoiceAssistant({
     console.log('Starting to listen...')
     
     try {
-      recognitionRef.current.start()
-    } catch (error) {
+          recognitionRef.current.start()
+        } catch (error) {
       console.error('Failed to start speech recognition:', error)
-      setIsListening(false)
-    }
+          setIsListening(false)
+        }
   }
 
   const stopListening = () => {

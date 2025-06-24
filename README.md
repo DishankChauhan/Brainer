@@ -9,10 +9,13 @@
 [![AWS](https://img.shields.io/badge/Amazon_AWS-FF9900?style=for-the-badge&logo=amazonaws&logoColor=white)](https://aws.amazon.com/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 
+![Brainer Landing Page](/public/brainer%20landing%20page.png)
 
-  ![image 1](https://github.com/user-attachments/assets/0012004c-be8e-40eb-90b0-931bdbb13e92)
+## 🎯 Why I Built Brainer
 
+Hey there! I'm Dishank Chauhan, and I built Brainer to solve a problem I personally faced - the need for a truly intelligent note-taking system that understands how we naturally process and recall information. As someone who loves to learn and explore new ideas, I wanted to create something that would not just store notes, but help us interact with our knowledge in a more natural and intuitive way.
 
+What started as a personal project has evolved into a powerful platform that combines cutting-edge AI with a seamless user experience. I've focused on making it not just technologically advanced, but also genuinely helpful in our daily lives.
 
 ## 🚀 Overview
 
@@ -173,11 +176,8 @@ graph TB
 - **Search Speed**: Instant results across thousands of notes
 - **Uptime**: 99.9% availability with auto-scaling
 
-
-
 ## 🛠️ Development Highlights
 ![image 2](https://github.com/user-attachments/assets/0974b04d-d852-46a2-8734-48162369d7d1)
-
 
 ### **Custom Hooks & Components**
 ```typescript
@@ -198,6 +198,32 @@ useAuth()       // Secure authentication flow
 - **User Feedback**: Clear error messages and loading states
 - **Retry Mechanisms**: Automatic recovery from failures
 - **Accessibility**: Full keyboard navigation and screen reader support
+
+## 🌟 Key Achievements
+
+- ✨ **Built from scratch** with modern tech stack
+- 🎯 **Zero to MVP** in under 3 months
+- 🔒 **Enterprise-ready** with robust security
+- 🌐 **Scalable architecture** for future growth
+- ✅ **Responsive design** optimized for all device sizes
+- ✅ **Security-first architecture** with enterprise-grade authentication
+
+## 🤝 Connect with Me
+
+Hey! I'm always excited to connect with fellow developers and tech enthusiasts. If you're interested in Brainer or want to discuss tech in general, feel free to reach out:
+
+- 📧 Email: [your-email@example.com]
+- 🌐 Portfolio: [Your Portfolio URL]
+- 💼 LinkedIn: [Your LinkedIn URL]
+- 🐦 Twitter: [Your Twitter Handle]
+
+## 📝 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+---
+
+Built with ❤️ by Dishank Chauhan
 
 ## 🚀 Future Roadmap
 
@@ -301,7 +327,6 @@ OPENAI_API_KEY="..."
 - ✅ **Type-safe development** with comprehensive TypeScript coverage
 - ✅ **Responsive design** optimized for all device sizes
 - ✅ **Security-first architecture** with enterprise-grade authentication
-
 
 ### **Connect with Me**
 - 🌐 **Portfolio**: [portfolio-git-main-dishank-chauhans-projects.vercel.app](https://portfolio-git-main-dishank-chauhans-projects.vercel.app/)

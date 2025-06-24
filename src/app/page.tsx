@@ -158,7 +158,7 @@ function AnimatedGroup({
   const itemVariants = variants?.item || selectedVariants.item;
 
   return (
-    <motion.div
+          <motion.div
       initial='hidden'
       animate='visible'
       variants={containerVariants}
@@ -168,8 +168,8 @@ function AnimatedGroup({
         <motion.div key={index} variants={itemVariants}>
           {child}
         </motion.div>
-      ))}
-    </motion.div>
+             ))}
+          </motion.div>
   );
 }
 
@@ -204,7 +204,7 @@ export default function HeroSection() {
                     <div className="w-[35rem] h-[80rem] -translate-y-[350px] absolute left-0 top-0 -rotate-45 rounded-full bg-[radial-gradient(68.54%_68.72%_at_55.02%_31.46%,hsla(0,0%,50%,.08)_0,hsla(0,0%,30%,.02)_50%,hsla(0,0%,20%,0)_80%)]" />
                     <div className="h-[80rem] absolute left-0 top-0 w-56 -rotate-45 rounded-full bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,60%,.06)_0,hsla(0,0%,40%,.02)_80%,transparent_100%)] [translate:5%_-50%]" />
                     <div className="h-[80rem] -translate-y-[350px] absolute left-0 top-0 w-56 -rotate-45 bg-[radial-gradient(50%_50%_at_50%_50%,hsla(0,0%,40%,.04)_0,hsla(0,0%,20%,.02)_80%,transparent_100%)]" />
-                </div>
+        </div>
                 <section>
                     <div className="relative pt-24 md:pt-36">
                         <AnimatedGroup
@@ -235,7 +235,7 @@ export default function HeroSection() {
                             className="absolute inset-0 -z-20">
                             <div className="absolute inset-x-0 top-56 -z-20 hidden lg:top-32 lg:block">
                                 <div className="w-full h-full bg-gradient-to-b from-transparent via-gray-900/10 to-gray-800/20" />
-                            </div>
+                </div>
                         </AnimatedGroup>
                         <div aria-hidden className="absolute inset-0 -z-10 size-full [background:radial-gradient(125%_125%_at_50%_100%,transparent_0%,#000000_75%)]" />
                         <div className="mx-auto max-w-7xl px-6">
@@ -255,10 +255,10 @@ export default function HeroSection() {
                                                 <span className="flex size-6">
                                                     <ArrowRight className="m-auto size-3" />
                                                 </span>
-                                            </div>
+                </div>
                                         </div>
-                                    </Link>
-                        
+          </Link>
+
                                     <h1 className="mt-8 max-w-4xl mx-auto text-balance text-6xl md:text-7xl lg:mt-16 xl:text-[5.25rem] font-light tracking-wide">
                                         <div className="text-white font-extralight">Your Memory-Preserving</div>
                                         <WordRotate
@@ -302,7 +302,7 @@ export default function HeroSection() {
                                                 <span className="text-nowrap">🧠 Start Building Your Brain</span>
                                             </Link>
                                         </Button>
-                                    </div>
+                </div>
                                     <Button
                                         key={2}
                                         asChild
@@ -311,10 +311,10 @@ export default function HeroSection() {
                                         className="h-10.5 rounded-xl px-5 text-gray-300 hover:text-white hover:bg-gray-800">
                                         <Link href="#demo">
                                             <span className="text-nowrap">Watch Demo</span>
-                                        </Link>
+          </Link>
                                     </Button>
                                 </AnimatedGroup>
-                            </div>
+        </div>
                         </div>
 
                         <AnimatedGroup
@@ -345,7 +345,7 @@ export default function HeroSection() {
                                                     <div className="flex items-center space-x-3">
                                                         <span className="text-2xl">🧠</span>
                                                         <span className="text-xl font-bold text-white">Brainer</span>
-                                                    </div>
+            </div>
                                                     <div className="ml-auto flex items-center space-x-4">
                                                         <div className="bg-white text-black px-3 py-1 rounded-lg text-sm">+ New Note</div>
                                                     </div>
@@ -361,16 +361,16 @@ export default function HeroSection() {
                                                                 <div className="flex items-center space-x-3 p-2 rounded-lg bg-gray-700">
                                                                     <span className="text-sm">🎙️</span>
                                                                     <span className="text-sm text-white">Voice Note</span>
-                                                                </div>
+                                            </div>
                                                                 <div className="flex items-center space-x-3 p-2 rounded-lg">
                                                                     <span className="text-sm">📝</span>
                                                                     <span className="text-sm text-gray-300">Text Note</span>
-                                                                </div>
+                                                </div>
                                                                 <div className="flex items-center space-x-3 p-2 rounded-lg">
                                                                     <span className="text-sm">📸</span>
                                                                     <span className="text-sm text-gray-300">Screenshot</span>
-                                                                </div>
-                                                            </div>
+                                            </div>
+                                        </div>
                                                             <div className="text-gray-400 text-xs uppercase tracking-wider mt-6">Recent Notes</div>
                                                             <div className="space-y-2">
                                                                 <div className="p-2 rounded-lg border border-gray-700">
@@ -387,8 +387,8 @@ export default function HeroSection() {
                                                                 </div>
                                                             </div>
                                                         </div>
-                                                    </div>
-                                                    
+                                        </div>
+                                        
                                                     {/* Main Content Area */}
                                                     <div className="flex-1 p-6">
                                                         <div className="bg-gray-800 rounded-xl p-6 border border-gray-700">
@@ -401,19 +401,19 @@ export default function HeroSection() {
                                                                 <div className="ml-auto flex space-x-2">
                                                                     <div className="bg-white text-black px-2 py-1 rounded text-xs">✨ Regenerate Summary</div>
                                                                     <div className="bg-gray-600 text-white px-2 py-1 rounded text-xs">✏️ Edit</div>
-                                                                </div>
-                                                            </div>
-                                                            
+                                    </div>
+                                </div>
+                                
                                                             <div className="mb-6">
                                                                 <div className="bg-gray-800/50 border border-gray-600 rounded-lg p-4 mb-4">
                                                                     <div className="flex items-center space-x-2 mb-2">
                                                                         <span className="text-gray-300 text-sm">🤖</span>
                                                                         <span className="text-gray-300 text-sm font-semibold">AI Summary</span>
                                                                         <span className="text-gray-400 text-xs">25/06/2025</span>
-                                                                    </div>
+                                    </div>
                                                                     <div className="text-gray-300 text-sm leading-relaxed">
                                                                         A voice recording has been transcribed with 73% confidence using AWS Transcribe. The speaker is testing the Brainer app.
-                                                                    </div>
+                                </div>
                                                                     <div className="mt-3">
                                                                         <div className="text-gray-300 text-sm font-semibold mb-1"># Key Points</div>
                                                                         <ul className="text-gray-300 text-sm space-y-1">
@@ -422,18 +422,18 @@ export default function HeroSection() {
                                                                             <li>• Transcription can be reviewed and edited if needed</li>
                                                                             <li>• Next steps include adding tags for organization and using the content for projects</li>
                                                                         </ul>
-                                                                    </div>
+                            </div>
                                                                     <div className="mt-2 text-gray-400 text-xs">392 tokens used</div>
-                                                                </div>
-                                                            </div>
-
+                        </div>
+                    </div>
+                    
                                                             <div className="mb-4">
                                                                 <h4 className="text-white font-semibold mb-2 flex items-center">
                                                                     <span className="mr-2">🎙️</span>
                                                                     Voice Recording
                                                                 </h4>
                                                                 <div className="text-gray-300 font-semibold">• Transcribed</div>
-                                                            </div>
+                </div>
 
                                                             <div className="bg-gray-900 rounded-lg p-4">
                                                                 <div className="mb-3">
@@ -444,7 +444,7 @@ export default function HeroSection() {
                                                                 
                                                                 <div className="mb-2">
                                                                     <h5 className="text-white font-semibold"># 📝 Transcription</h5>
-                                                                </div>
+          </div>
                                                                 
                                                                 <div className="text-gray-300 text-sm leading-relaxed">
                                                                     Hey, this is Dishank testing the Brainer app. I'm speaking, I don't know why I'm speaking, but I'm testing it.
@@ -452,13 +452,13 @@ export default function HeroSection() {
                                                                 
                                                                 <div className="mt-4 text-gray-500 text-xs border-t border-gray-700 pt-2">
                                                                     ---
-                                                                </div>
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </div>
+            </div>
+                                    </div>
                                         </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                                     </div>
                                 </div>
                             </div>
@@ -496,17 +496,17 @@ export default function HeroSection() {
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
                                             <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🎙️</span>
-                                            </div>
+                                        </div>
                                             <div className="space-y-3">
                                                 <h3 className="text-xl font-semibold text-white">Voice Notes</h3>
                                                 <p className="text-sm text-gray-400 leading-relaxed">
                                                     Record voice memos anywhere. Our AI transcribes with high accuracy and generates intelligent summaries with key points and action items.
                                                 </p>
                                             </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
-                            </div>
 
                             {/* Smart Screenshots Feature */}
                             <div className="relative h-full">
@@ -525,7 +525,7 @@ export default function HeroSection() {
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
                                             <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">📸</span>
-                                            </div>
+                                        </div>
                                             <div className="space-y-3">
                                                 <h3 className="text-xl font-semibold text-white">Smart Screenshots</h3>
                                                 <p className="text-sm text-gray-400 leading-relaxed">
@@ -554,17 +554,17 @@ export default function HeroSection() {
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
                                             <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🤖</span>
-                                            </div>
+                            </div>
                                             <div className="space-y-3">
                                                 <h3 className="text-xl font-semibold text-white">AI Insights</h3>
                                                 <p className="text-sm text-gray-400 leading-relaxed">
                                                     Get intelligent summaries, extract key points, and discover connections between your notes automatically with advanced AI.
                                                 </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
+          </div>
+            </div>
+          </div>
+            </div>
+            </div>
 
                             {/* Smart Search Feature */}
                             <div className="relative h-full">
@@ -589,9 +589,9 @@ export default function HeroSection() {
                                                 <p className="text-sm text-gray-400 leading-relaxed">
                                                     Find anything instantly with semantic search. Search by meaning, not just keywords. Your AI brain remembers everything.
                                                 </p>
-                                            </div>
-                                        </div>
-                                    </div>
+          </div>
+        </div>
+      </div>
                                 </div>
                             </div>
 
@@ -612,14 +612,14 @@ export default function HeroSection() {
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
                                             <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🧠</span>
-                                            </div>
+                                </div>
                                             <div className="space-y-3">
                                                 <h3 className="text-xl font-semibold text-white">Knowledge Graph</h3>
                                                 <p className="text-sm text-gray-400 leading-relaxed">
                                                     Automatically discover and visualize connections between your ideas. Build a living map of your knowledge and thoughts.
                                                 </p>
-                                            </div>
-                                        </div>
+                                </div>
+                            </div>
                                     </div>
                                 </div>
                             </div>
@@ -641,22 +641,22 @@ export default function HeroSection() {
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
                                             <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🔄</span>
-                                            </div>
+                                </div>
                                             <div className="space-y-3">
                                                 <h3 className="text-xl font-semibold text-white">Real-time Sync</h3>
                                                 <p className="text-sm text-gray-400 leading-relaxed">
                                                     Access your brain from anywhere. Real-time synchronization across all devices ensures your ideas are always available.
                                                 </p>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
+                                </div>
+          </div>
+        </div>
                         </div>
-                    </div>
-                </section>
+            </div>
+        </section>
 
-                {/* Pricing Section */}
+        {/* Pricing Section */}
                 <section className="bg-black">
                     <Pricing 
                         plans={[]}
@@ -730,7 +730,7 @@ export default function HeroSection() {
                                 <span>Ready to build your AI brain?</span>
                                 <ChevronRight className="ml-1 inline-block size-3" />
                             </Link>
-                        </div>
+            </div>
                         <div className="group-hover:blur-xs mx-auto grid max-w-2xl grid-cols-1 gap-8 transition-all duration-500 group-hover:opacity-50">
                             <div className="text-center">
                                 <h3 className="text-2xl font-bold text-white mb-4">
@@ -748,8 +748,8 @@ export default function HeroSection() {
                                         🧠 Start Building Your Brain
                                     </Link>
                                 </Button>
-                            </div>
-                        </div>
+      </div>
+    </div>
                     </div>
                 </section>
             </main>
@@ -791,8 +791,8 @@ const HeroHeader = () => {
         window.addEventListener('scroll', handleScroll)
         return () => window.removeEventListener('scroll', handleScroll)
     }, [])
-    
-    return (
+
+  return (
         <header>
             <nav
                 data-state={menuState && 'active'}
@@ -814,8 +814,8 @@ const HeroHeader = () => {
                                 <Menu className="in-data-[state=active]:rotate-180 group-data-[state=active]:scale-0 group-data-[state=active]:opacity-0 m-auto size-6 duration-200 text-white" />
                                 <X className="group-data-[state=active]:rotate-0 group-data-[state=active]:scale-100 group-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200 text-white" />
                             </button>
-                        </div>
-
+        </div>
+        
                         <div className="absolute inset-0 m-auto hidden size-fit lg:block">
                             <ul className="flex gap-8 text-sm">
                                 {menuItems.map((item, index) => (
@@ -828,8 +828,8 @@ const HeroHeader = () => {
                                     </li>
                                 ))}
                             </ul>
-                        </div>
-
+        </div>
+        
                         <div className="bg-gray-900 group-data-[state=active]:block lg:group-data-[state=active]:flex mb-6 hidden w-full flex-wrap items-center justify-end space-y-8 rounded-3xl border border-gray-800 p-6 shadow-2xl shadow-black/50 md:flex-nowrap lg:m-0 lg:flex lg:w-fit lg:gap-6 lg:space-y-0 lg:border-transparent lg:bg-transparent lg:p-0 lg:shadow-none">
                             <div className="lg:hidden">
                                 <ul className="space-y-6 text-base">
@@ -845,15 +845,15 @@ const HeroHeader = () => {
                                 </ul>
                             </div>
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                                <Button
+            <Button
                                     asChild
-                                    variant="outline"
+              variant="outline"
                                     size="sm"
                                     className={cn(isScrolled && 'lg:hidden', 'border-gray-700 text-gray-300 hover:bg-gray-800 hover:text-white')}>
                                     <Link href="/auth/signin">
                                         <span>Sign In</span>
                                     </Link>
-                                </Button>
+            </Button>
                                 <Button
                                     asChild
                                     size="sm"
@@ -870,7 +870,7 @@ const HeroHeader = () => {
                                         <span>Get Started</span>
                                     </Link>
                                 </Button>
-                            </div>
+        </div>
                         </div>
                     </div>
                 </div>
@@ -880,10 +880,10 @@ const HeroHeader = () => {
 }
 
 const BrainerLogo = ({ className }: { className?: string }) => {
-    return (
+	return (
         <div className={cn('flex items-center space-x-2', className)}>
             <span className="text-3xl">🧠</span>
-            <span className="text-xl font-bold text-white">Brainer</span>
-        </div>
+						<span className="text-xl font-bold text-white">Brainer</span>
+					</div>
     )
 }

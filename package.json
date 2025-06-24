@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "dev:https": "next dev --experimental-https",
+    "lint:fix-unused": "eslint . --ext .ts,.tsx --rule 'no-unused-vars: [2]' --fix",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
