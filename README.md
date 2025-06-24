@@ -298,6 +298,21 @@ Special thanks to the open-source community and the following technologies that 
 - Vercel for seamless deployment experience
 - The React and Next.js teams for excellent frameworks
 
+## 🧪 Quick Test Drive
+
+Want to try Brainer? Use these test credentials:
+```
+Email: harkirat12@gmail.com
+Password: 100xdevs.com
+```
+
+**Important Requirements:**
+- Use Google Chrome browser for the best experience
+- Enable microphone permissions for voice features
+- Access via HTTPS for all features to work properly
+
+[Try Brainer Now →](https://brainer-six.vercel.app/)
+
 ---
 
 <div align="center">
