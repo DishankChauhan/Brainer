@@ -481,7 +481,7 @@ export default function HeroSection() {
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
                             {/* Voice Notes Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -494,7 +494,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🎙️</span>
                                             </div>
                                             <div className="space-y-3">
@@ -510,7 +510,7 @@ export default function HeroSection() {
 
                             {/* Smart Screenshots Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -523,7 +523,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">📸</span>
                                             </div>
                                             <div className="space-y-3">
@@ -539,7 +539,7 @@ export default function HeroSection() {
 
                             {/* AI Insights Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -552,7 +552,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🤖</span>
                                             </div>
                                             <div className="space-y-3">
@@ -568,7 +568,7 @@ export default function HeroSection() {
 
                             {/* Smart Search Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -581,7 +581,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">⚡</span>
                                             </div>
                                             <div className="space-y-3">
@@ -597,7 +597,7 @@ export default function HeroSection() {
 
                             {/* Knowledge Graph Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -610,7 +610,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🧠</span>
                                             </div>
                                             <div className="space-y-3">
@@ -626,7 +626,7 @@ export default function HeroSection() {
 
                             {/* Real-time Sync Feature */}
                             <div className="relative h-full">
-                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-700 p-2 md:rounded-[1.5rem] md:p-3">
+                                <div className="relative h-full rounded-[1.25rem] border-[0.75px] border-gray-800 p-2 md:rounded-[1.5rem] md:p-3">
                                     <GlowingEffect 
                                         disabled={false}
                                         proximity={64}
@@ -639,7 +639,7 @@ export default function HeroSection() {
                                     />
                                     <div className="relative flex h-full flex-col justify-between gap-6 overflow-hidden rounded-xl border-[0.75px] bg-black p-6 shadow-sm">
                                         <div className="relative flex flex-1 flex-col justify-between gap-3">
-                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-700 bg-gray-800 p-2">
+                                            <div className="w-fit rounded-lg border-[0.75px] border-gray-800 bg-gray-800 p-2">
                                                 <span className="text-2xl">🔄</span>
                                             </div>
                                             <div className="space-y-3">
