@@ -13,7 +13,7 @@ interface FooterProps {
   barCount?: number; 
 }
 
-const Footer: React.FC<FooterProps> = ({
+const AnimatedFooter: React.FC<FooterProps> = ({
   leftLinks,
   rightLinks,
   copyrightText,
@@ -79,6 +79,10 @@ const Footer: React.FC<FooterProps> = ({
     };
   }, [isVisible]);
 
+  const scrollToTop = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
   return (
     <footer
       ref={footerRef}
@@ -118,7 +122,10 @@ const Footer: React.FC<FooterProps> = ({
             ))}
           </ul>
           <div className="text-right mt-4">
-            <button className="text-sm hover:underline inline-flex items-center">
+            <button 
+              onClick={scrollToTop}
+              className="text-sm hover:underline inline-flex items-center"
+            >
               Back to top
             </button>
           </div>
@@ -150,4 +157,4 @@ const Footer: React.FC<FooterProps> = ({
   );
 };
 
-export default Footer;
+export default AnimatedFooter; 
