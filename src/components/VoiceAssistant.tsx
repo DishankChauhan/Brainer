@@ -173,41 +173,62 @@ export function VoiceAssistant({
       return
     }
 
+    // Check if we're on HTTPS
+    if (typeof window !== 'undefined' && window.location.protocol !== 'https:') {
+      console.warn('Speech recognition requires HTTPS')
+      // If in development, allow HTTP
+      if (process.env.NODE_ENV !== 'development' && !window.location.hostname.includes('localhost')) {
+        return
+      }
+    }
+
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition
-        recognitionRef.current = new SpeechRecognition()
+    recognitionRef.current = new SpeechRecognition()
         
-        if (recognitionRef.current) {
-          recognitionRef.current.continuous = false
-          recognitionRef.current.interimResults = false
+    if (recognitionRef.current) {
+      recognitionRef.current.continuous = false
+      recognitionRef.current.interimResults = false
       recognitionRef.current.lang = 'en-US'
 
-          recognitionRef.current.onstart = () => {
+      recognitionRef.current.onstart = () => {
         console.log('Speech recognition started')
-            setIsListening(true)
-          }
+        setIsListening(true)
+      }
           
-          recognitionRef.current.onend = () => {
+      recognitionRef.current.onend = () => {
         console.log('Speech recognition ended')
-            setIsListening(false)
-          }
+        setIsListening(false)
+      }
           
-          recognitionRef.current.onresult = (event: any) => {
-              const transcript = event.results[0]?.item(0)?.transcript
-              if (transcript) {
+      recognitionRef.current.onresult = (event: any) => {
+        const transcript = event.results[0]?.item(0)?.transcript
+        if (transcript) {
           console.log('Speech result:', transcript)
-                handleUserMessage(transcript)
-            }
-          }
+          handleUserMessage(transcript)
+        }
+      }
 
-          recognitionRef.current.onerror = (event: any) => {
+      recognitionRef.current.onerror = (event: any) => {
         console.log('Speech recognition error:', event.error)
-            setIsListening(false)
+        setIsListening(false)
             
         if (event.error === 'not-allowed') {
           console.error('Microphone permission denied')
           alert('Please allow microphone access to use voice features')
-              } else if (event.error === 'no-speech') {
+        } else if (event.error === 'no-speech') {
           console.log('No speech detected')
+        } else if (event.error === 'network') {
+          console.error('Network error in speech recognition')
+          // Retry after a short delay
+          setTimeout(() => {
+            if (recognitionRef.current) {
+              try {
+                recognitionRef.current.start()
+              } catch (e) {
+                console.error('Failed to restart recognition:', e)
+              }
+            }
+          }, 1000)
         }
       }
     }

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
-import { createWorker } from 'tesseract.js'
 import { AWSTranscribeService, isTranscribeAvailable } from '@/lib/aws-transcribe'
 import { getAWSServiceStatus } from '@/lib/aws-config'
 import { generateEmbedding, shouldGenerateEmbedding, prepareContentForEmbedding } from '@/lib/embeddings'
@@ -13,11 +12,20 @@ async function uploadHandler(request: AuthenticatedRequest) {
     const formData = await request.formData()
     const file = formData.get('file') as File
     const type = formData.get('type') as 'voice' | 'screenshot'
-    const userId = request.user.uid // Get userId from authenticated user
+    const extractedText = formData.get('extractedText') as string // Get OCR text from client
+    const userId = request.user.uid
 
     if (!file || !type) {
       return NextResponse.json(
         { error: 'File and type are required' }, 
+        { status: 400 }
+      )
+    }
+
+    // Add size limit for screenshots
+    if (type === 'screenshot' && file.size > 5 * 1024 * 1024) { // 5MB limit
+      return NextResponse.json(
+        { error: 'Screenshot file size must be under 5MB' },
         { status: 400 }
       )
     }
@@ -27,7 +35,8 @@ async function uploadHandler(request: AuthenticatedRequest) {
       fileName: file.name, 
       fileType: file.type, 
       fileSize: file.size, 
-      type 
+      type,
+      hasExtractedText: !!extractedText
     })
     
     const validationError = validateFileUpload(file, type)
@@ -55,7 +64,7 @@ async function uploadHandler(request: AuthenticatedRequest) {
     const buffer = Buffer.from(await file.arrayBuffer())
     const filename = `${Date.now()}-${file.name}`
 
-    let extractedText = ''
+    let finalText = ''
     let summary = ''
     let transcriptionJobId: string | undefined
     let transcriptionS3Key: string | undefined
@@ -63,16 +72,19 @@ async function uploadHandler(request: AuthenticatedRequest) {
 
     if (type === 'voice') {
       const result = await processVoiceFile(buffer, filename, userId)
-      extractedText = result.content
+      finalText = result.content
       transcriptionJobId = result.jobId
       transcriptionS3Key = result.s3Key
       isProcessing = result.isProcessing
     } else if (type === 'screenshot') {
-      extractedText = await processImageFile(buffer, filename)
+      // Use client-provided OCR text or create a placeholder
+      finalText = extractedText || `# Screenshot Upload\n\n**File:** ${filename}\n\n*Processing screenshot...*\n\nThe text content will be added shortly.`
     }
 
-    // Generate AI summary (placeholder for now)
-    summary = await generatePlaceholderSummary(extractedText, type)
+    // Generate AI summary if we have text
+    if (finalText) {
+      summary = await generatePlaceholderSummary(finalText, type)
+    }
 
     // Create note with extracted content
     const noteTitle = type === 'voice' 
@@ -80,8 +92,8 @@ async function uploadHandler(request: AuthenticatedRequest) {
       : `📸 Screenshot - ${new Date().toLocaleDateString()}`
 
     const noteContent = summary 
-      ? `## AI Summary\n${summary}\n\n## ${type === 'voice' ? 'Transcription' : 'Extracted Text'}\n${extractedText}`
-      : extractedText
+      ? `## AI Summary\n${summary}\n\n## ${type === 'voice' ? 'Transcription' : 'Extracted Text'}\n${finalText}`
+      : finalText
 
     const note = await prisma.note.create({
       data: {
@@ -103,10 +115,10 @@ async function uploadHandler(request: AuthenticatedRequest) {
     })
 
     // AUTO-GENERATE EMBEDDING for screenshot content (voice embeddings are handled in transcription completion)
-    if (type === 'screenshot' && extractedText && shouldGenerateEmbedding(extractedText)) {
+    if (type === 'screenshot' && finalText && shouldGenerateEmbedding(finalText)) {
       try {
         // Prepare content for embedding
-        const contentForEmbedding = prepareContentForEmbedding(extractedText)
+        const contentForEmbedding = prepareContentForEmbedding(finalText)
         const fullText = `${noteTitle}\n\n${contentForEmbedding}`
         
         // Generate embedding
@@ -129,10 +141,10 @@ async function uploadHandler(request: AuthenticatedRequest) {
     }
 
     // AUTO-GENERATE AI SUMMARY for screenshot content 
-    if (type === 'screenshot' && extractedText && extractedText.length >= 50) {
+    if (type === 'screenshot' && finalText && finalText.length >= 50) {
       try {
         // Generate AI summary using OpenAI
-        const summaryResult = await generateOpenAISummary(extractedText)
+        const summaryResult = await generateOpenAISummary(finalText)
         
         // Update the note with AI summary
         await prisma.note.update({
@@ -172,6 +184,7 @@ async function uploadHandler(request: AuthenticatedRequest) {
 
     return NextResponse.json(transformedNote, { status: 201 })
   } catch (error) {
+    console.error('Upload error:', error)
     return NextResponse.json(
       { 
         error: 'Upload failed', 
@@ -221,88 +234,6 @@ async function processVoiceFile(
       content: `# Voice Recording Upload\n\n**File:** ${filename}\n**Size:** ${fileSizeKB} KB\n\n## ⚠️ Transcription Service Temporarily Unavailable\n\n**Error:** ${error instanceof Error ? error.message : 'Unknown transcription error'}\n\n**What you can do:**\n- Try uploading again in a few minutes\n- Check your AWS service configuration\n- Add manual transcription below\n\n---\n\n**Manual Transcription Area:**\n\n*Click Edit to add your transcription here...*\n\n---\n\n*Automatic transcription will resume once the service is restored.*`,
       isProcessing: false
     }
-  }
-}
-
-// Text cleaning function to remove OCR artifacts and unwanted symbols
-function cleanOCRText(text: string): string {
-  if (!text) return text
-  
-  return text
-    // Remove common OCR artifacts and symbols
-    .replace(/[®©™¥€£¢§¶†‡•‰‱°′″‴]/g, '') // Remove trademark, currency, and special symbols
-    .replace(/[^\w\s\-.,!?;:()\[\]{}'"@#$%&*+=<>/\\|`~\n]/g, '') // Keep only common punctuation, alphanumeric, and newlines
-    
-    // Fix common OCR spacing issues
-    .replace(/([a-z])([A-Z])/g, '$1 $2') // Add space between lowercase and uppercase letters
-    .replace(/([.!?])([A-Z])/g, '$1\n\n$2') // Add line breaks after sentences that start new topics
-    .replace(/([a-z])(\d)/g, '$1 $2') // Add space between letters and numbers
-    .replace(/(\d)([a-z])/g, '$1 $2') // Add space between numbers and letters
-    
-    // Handle bullet points and lists
-    .replace(/([.!?])\s*([•○▪▫-])/g, '$1\n\n$2') // Line break before bullet points
-    .replace(/^([•○▪▫-])/gm, '\n$1') // Ensure bullet points start on new lines
-    .replace(/([•○▪▫-])\s*/g, '• ') // Normalize bullet points
-    
-    // Handle numbered lists
-    .replace(/(\d+\.)\s*/g, '\n$1 ') // Put numbered items on new lines
-    
-    // Handle common document structures
-    .replace(/([A-Z][A-Z\s]{3,})/g, '\n\n**$1**\n') // Convert ALL CAPS headers to bold headers
-    .replace(/^([A-Z][a-z]+:)/gm, '\n**$1**') // Convert "Label:" patterns to bold
-    
-    // Fix paragraph breaks
-    .replace(/([.!?])\s+([A-Z][a-z])/g, '$1\n\n$2') // Add paragraph breaks between sentences
-    .replace(/\n\s*\n\s*\n+/g, '\n\n') // Normalize multiple line breaks to double
-    .replace(/\n{4,}/g, '\n\n\n') // Limit to maximum 3 line breaks
-    
-    // Clean up spacing
-    .replace(/\s+/g, ' ') // Replace multiple spaces with single space (but preserve newlines)
-    .replace(/\n /g, '\n') // Remove spaces at beginning of lines
-    .replace(/ \n/g, '\n') // Remove spaces at end of lines
-    
-    // Final cleanup
-    .replace(/^\s+|\s+$/g, '') // Trim leading/trailing spaces
-    .replace(/^[^\w\s]*|[^\w\s]*$/g, '') // Remove leading/trailing non-word characters
-    .trim()
-}
-
-// OCR processing with Tesseract.js - configured for Next.js
-async function processImageFile(buffer: Buffer, filename: string): Promise<string> {
-  try {
-    // Import Tesseract dynamically to avoid SSR issues
-    const Tesseract = await import('tesseract.js')
-    
-    // Create worker with simpler configuration
-    const worker = await Tesseract.createWorker('eng', 1, {
-      logger: m => console.log('OCR Progress:', m.status, m.progress)
-    })
-    
-    // Process the image buffer
-    const { data: { text } } = await worker.recognize(buffer)
-    
-    // Clean up the worker
-    await worker.terminate()
-    
-    // Clean the extracted text to remove OCR artifacts
-    const cleanedText = cleanOCRText(text)
-    
-    if (!cleanedText.trim()) {
-      return `# Screenshot Processed\n\n**File:** ${filename}\n\n*No text was detected in this image.*\n\nThis could be because:\n- The image contains no text\n- The text is too small or blurry\n- The image is mainly graphics/diagrams\n\nYou can still use this note to:\n- Add manual descriptions\n- Reference the original screenshot\n- Add relevant tags`
-    }
-    
-    // Format the extracted text nicely
-    const formattedText = cleanedText
-      .split('\n')
-      .map(line => line.trim())
-      .filter(line => line.length > 0)
-      .join('\n\n')
-    
-    return `# 📸 Screenshot - ${new Date().toLocaleDateString()}\n\n**File:** ${filename}\n**Extracted:** ${new Date().toLocaleTimeString()}\n\n---\n\n## 📄 Extracted Text:\n\n${formattedText}\n\n---\n\n*✨ Text extracted and formatted using OCR technology*`
-    
-  } catch (error) {
-    // Fallback: create a note without OCR
-    return `# Screenshot Upload\n\n**File:** ${filename}\n\n*OCR processing failed, but your screenshot has been saved.*\n\n**You can:**\n- Manually add any text content from the image\n- Add a description of what the screenshot contains\n- Use this note to reference the original image\n\n**Technical Details:** OCR service temporarily unavailable. This often resolves itself - try uploading again later.\n\n---\n\n*To add content manually, click the Edit button above.*`
   }
 }
 
