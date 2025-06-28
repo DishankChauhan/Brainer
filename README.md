@@ -1,4 +1,6 @@
 # Brainer - AI-Powered Note-Taking Revolution
+📄 **Published System Paper:** [DOI: 10.5281/zenodo.15765178](https://doi.org/10.5281/zenodo.15765178)
+
 
 > **Built from scratch by [Dishank Chauhan](https://github.com/DishankChauhan)**  
 > *Transforming how we capture, organize, and recall information with AI*
